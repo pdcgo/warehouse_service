@@ -2,49 +2,285 @@ package warehouse_service
 
 import (
 	"context"
+	"errors"
+	"strings"
+	"time"
 
+	"github.com/pdcgo/shared/authorization"
+	"github.com/pdcgo/shared/interfaces/authorization_iface"
 	"github.com/pdcgo/shared/interfaces/warehouse_iface"
+	"github.com/pdcgo/warehouse_service/models"
+	"github.com/pdcgo/warehouse_service/warehouse_mutations"
+	"google.golang.org/protobuf/types/known/timestamppb"
+	"gorm.io/gorm"
 )
+
+func NewWarehouseFinanceService(db *gorm.DB, auth authorization_iface.Authorization) warehouse_iface.WarehouseFinanceServiceServer {
+	return &warehouseFinImpl{
+		db:   db,
+		auth: auth,
+	}
+}
 
 type warehouseFinImpl struct {
 	warehouse_iface.UnimplementedWarehouseFinanceServiceServer
+	db   *gorm.DB
+	auth authorization_iface.Authorization
 }
 
 // ExpenseAccountCreate implements warehouse_iface.WarehouseFinanceServiceServer.
-func (w *warehouseFinImpl) ExpenseAccountCreate(context.Context, *warehouse_iface.ExpenseAccountCreateReq) (*warehouse_iface.ExpenseAccount, error) {
-	panic("unimplemented")
+func (w *warehouseFinImpl) ExpenseAccountCreate(ctx context.Context, payload *warehouse_iface.ExpenseAccountCreateReq) (*warehouse_iface.ExpenseAccount, error) {
+	identity := ctx.Value("identity").(*authorization.JwtIdentity)
+	err := w.auth.HasPermission(identity, authorization_iface.CheckPermissionGroup{
+		&models.WareExpenseAccount{}: &authorization_iface.CheckPermission{
+			DomainID: uint(payload.DomainId),
+			Actions:  []authorization_iface.Action{authorization_iface.Create},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var result *warehouse_iface.ExpenseAccount
+
+	name := strings.Trim(payload.Name, " ")
+	numberId := strings.Trim(payload.NumberId, " ")
+	err = w.db.Transaction(func(tx *gorm.DB) error {
+		accountService := warehouse_mutations.NewExpenseAccountService(tx, uint(payload.WarehouseId))
+		account, err := accountService.Create(name, numberId, payload.IsOpsAccount)
+		if err != nil {
+			return err
+		}
+		warehouse, err := accountService.Warehouse()
+		if err != nil {
+			return err
+		}
+
+		result = &warehouse_iface.ExpenseAccount{
+			Id:           uint64(account.ID),
+			WarehouseId:  payload.WarehouseId,
+			Name:         account.Name,
+			NumberId:     account.NumberID,
+			IsOpsAccount: warehouse.IsOpsAccount,
+			CreatedAt:    timestamppb.New(account.CreatedAt),
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
 }
 
 // ExpenseAccountEdit implements warehouse_iface.WarehouseFinanceServiceServer.
-func (w *warehouseFinImpl) ExpenseAccountEdit(context.Context, *warehouse_iface.ExpenseAccountEditReq) (*warehouse_iface.ExpenseAccount, error) {
-	panic("unimplemented")
+func (w *warehouseFinImpl) ExpenseAccountEdit(ctx context.Context, payload *warehouse_iface.ExpenseAccountEditReq) (*warehouse_iface.ExpenseAccount, error) {
+	identity := ctx.Value("identity").(*authorization.JwtIdentity)
+	err := w.auth.HasPermission(identity, authorization_iface.CheckPermissionGroup{
+		&models.WareExpenseAccount{}: &authorization_iface.CheckPermission{
+			DomainID: uint(payload.DomainId),
+			Actions:  []authorization_iface.Action{authorization_iface.Update},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	name := strings.Trim(payload.Name, " ")
+	numberId := strings.Trim(payload.NumberId, " ")
+
+	var result *warehouse_iface.ExpenseAccount
+	err = w.db.Transaction(func(tx *gorm.DB) error {
+		accountService := warehouse_mutations.NewExpenseAccountService(tx, uint(payload.WarehouseId))
+		account, err := accountService.
+			GetByQuery(true, func(tx *gorm.DB) *gorm.DB {
+				return tx.Where("ware_expense_accounts.id = ?", payload.AccountId)
+			})
+		if err != nil {
+			return err
+		}
+
+		err = accountService.Update(name, numberId)
+		if err != nil {
+			return err
+		}
+
+		warehouse, err := accountService.Warehouse()
+		if err != nil {
+			return err
+		}
+
+		result = &warehouse_iface.ExpenseAccount{
+			Id:           uint64(account.ID),
+			NumberId:     account.NumberID,
+			Name:         account.Name,
+			IsOpsAccount: warehouse.IsOpsAccount,
+			WarehouseId:  uint64(payload.WarehouseId),
+			CreatedAt:    timestamppb.New(account.CreatedAt),
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
 }
 
 // ExpenseAccountGet implements warehouse_iface.WarehouseFinanceServiceServer.
-func (w *warehouseFinImpl) ExpenseAccountGet(context.Context, *warehouse_iface.ExpenseAccountGetReq) (*warehouse_iface.ExpenseAccount, error) {
-	panic("unimplemented")
+func (w *warehouseFinImpl) ExpenseAccountGet(ctx context.Context, query *warehouse_iface.ExpenseAccountGetReq) (*warehouse_iface.ExpenseAccount, error) {
+
+	var result *warehouse_iface.ExpenseAccount
+	err := w.db.Transaction(func(tx *gorm.DB) error {
+		accountService := warehouse_mutations.NewExpenseAccountService(tx, uint(query.WarehouseId))
+		account, err := accountService.
+			GetByQuery(false, func(tx *gorm.DB) *gorm.DB {
+				return tx.
+					Where("ware_expense_accounts.id = ?", query.Id).
+					Where("ware_expense_account_warehouses.warehouse_id = ?", query.WarehouseId).
+					Where("ware_expense_account_warehouses.is_ops_account = ?", query.IsOpsAccount)
+			})
+		if err != nil {
+			return err
+		}
+
+		warehouse, err := accountService.Warehouse()
+		if err != nil {
+			return err
+		}
+
+		result = &warehouse_iface.ExpenseAccount{
+			Id:           uint64(account.ID),
+			NumberId:     account.NumberID,
+			Name:         account.Name,
+			IsOpsAccount: warehouse.IsOpsAccount,
+			WarehouseId:  uint64(query.WarehouseId),
+			CreatedAt:    timestamppb.New(account.CreatedAt),
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
 }
 
 // ExpenseAccountList implements warehouse_iface.WarehouseFinanceServiceServer.
-func (w *warehouseFinImpl) ExpenseAccountList(context.Context, *warehouse_iface.ExpenseAccountListReq) (*warehouse_iface.ExpenseAccountListRes, error) {
-	panic("unimplemented")
+func (w *warehouseFinImpl) ExpenseAccountList(ctx context.Context, query *warehouse_iface.ExpenseAccountListReq) (*warehouse_iface.ExpenseAccountListRes, error) {
+	data := []*models.WareExpenseAccountWarehouse{}
+
+	sqlQuery := w.db.Model(&models.WareExpenseAccountWarehouse{}).
+		Joins("JOIN ware_expense_accounts ON ware_expense_accounts.id = ware_expense_account_warehouses.account_id")
+	if query.WarehouseId != 0 {
+		sqlQuery = sqlQuery.Where("ware_expense_account_warehouses.warehouse_id = ?", query.WarehouseId)
+	}
+	if query.NumberId != "" {
+		sqlQuery = sqlQuery.Where("ware_expense_accounts.number_id LIKE ?", "%"+query.NumberId+"%")
+	}
+	if query.Name != "" {
+		sqlQuery = sqlQuery.Where("LOWER(ware_expense_accounts.name) LIKE ?", "%"+query.Name+"%")
+	}
+	if query.IsOpsAccount {
+		sqlQuery = sqlQuery.Where("ware_expense_account_warehouses.is_ops_account = ?", query.IsOpsAccount)
+	}
+
+	err := sqlQuery.
+		Preload("Account").
+		Find(&data).Error
+	if err != nil {
+		return nil, err
+	}
+
+	results := warehouse_iface.ExpenseAccountListRes{
+		Data: make([]*warehouse_iface.ExpenseAccount, len(data)),
+	}
+	for i, v := range data {
+		if v.Account == nil {
+			return nil, errors.New("account not found")
+		}
+
+		results.Data[i] = &warehouse_iface.ExpenseAccount{
+			Id:           uint64(v.AccountID),
+			NumberId:     v.Account.NumberID,
+			Name:         v.Account.Name,
+			WarehouseId:  uint64(v.WarehouseID),
+			IsOpsAccount: v.IsOpsAccount,
+			CreatedAt:    timestamppb.New(v.Account.CreatedAt),
+		}
+	}
+
+	return &results, err
 }
 
 // ExpenseHistoryAdd implements warehouse_iface.WarehouseFinanceServiceServer.
-func (w *warehouseFinImpl) ExpenseHistoryAdd(context.Context, *warehouse_iface.ExpenseHistoryAddReq) (*warehouse_iface.ExpenseHistoryAddRes, error) {
-	panic("unimplemented")
+func (w *warehouseFinImpl) ExpenseHistoryAdd(ctx context.Context, payload *warehouse_iface.ExpenseHistoryAddReq) (*warehouse_iface.ExpenseHistoryAddRes, error) {
+	identity := ctx.Value("identity").(*authorization.JwtIdentity)
+
+	err := w.db.Transaction(func(tx *gorm.DB) error {
+		histService := warehouse_mutations.NewExpenseHistService(tx, uint(payload.WarehouseId))
+		return histService.
+			Create(identity.From, uint(payload.AccountId), models.ExpenseType(payload.ExpenseType), payload.Amount)
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &warehouse_iface.ExpenseHistoryAddRes{}, nil
 }
 
 // ExpenseHistoryList implements warehouse_iface.WarehouseFinanceServiceServer.
-func (w *warehouseFinImpl) ExpenseHistoryList(context.Context, *warehouse_iface.ExpenseHistoryListReq) (*warehouse_iface.ExpenseHistoryListRes, error) {
-	panic("unimplemented")
+func (w *warehouseFinImpl) ExpenseHistoryList(ctx context.Context, query *warehouse_iface.ExpenseHistoryListReq) (*warehouse_iface.ExpenseHistoryListRes, error) {
+	result := warehouse_iface.ExpenseHistoryListRes{}
+
+	sqlQuery := w.db.Model(&models.WareExpenseHistory{}).
+		Joins("JOIN ware_expense_account_warehouses ON ware_expense_account_warehouses.account_id = ware_expense_histories.account_id AND ware_expense_account_warehouses.warehouse_id = ware_expense_histories").
+		Where("ware_expense_account_warehouses.is_ops_account = ?", query.IsOpsAccount)
+	if query.WarehouseId != 0 {
+		sqlQuery = sqlQuery.Where("ware_expense_histories.warehouse_id = ?", query.WarehouseId)
+	}
+	if query.AccountId != 0 {
+		sqlQuery = sqlQuery.Where("ware_expense_histories.account_id = ?", query.AccountId)
+	}
+	if query.ExpenseType != "" {
+		sqlQuery = sqlQuery.Where("ware_expense_histories.expense_type = ?", query.ExpenseType)
+	}
+	if query.StartDate != 0 {
+		unixMilli := time.UnixMilli(query.StartDate)
+		startDay := time.Date(unixMilli.Year(), unixMilli.Month(), unixMilli.Day(), 0, 0, 0, 0, unixMilli.Location())
+		sqlQuery = sqlQuery.Where("ware_expense_histories.created_at >= ?", startDay)
+	}
+	if query.EndDate != 0 {
+		unixMilli := time.UnixMilli(query.EndDate)
+		endDay := time.Date(unixMilli.Year(), unixMilli.Month(), unixMilli.Day()+1, 0, 0, 0, -1, unixMilli.Location())
+		sqlQuery = sqlQuery.Where("ware_expense_histories.created_at <= ?", endDay)
+	}
+
+	data := []*models.WareExpenseHistory{}
+	err := sqlQuery.
+		Find(&data).Error
+	if err != nil {
+		return nil, err
+	}
+
+	result.Data = make([]*warehouse_iface.ExpenseHistory, len(data))
+	for i, v := range data {
+		result.Data[i] = &warehouse_iface.ExpenseHistory{
+			Id:          uint64(v.ID),
+			AccountId:   uint64(v.AccountID),
+			WarehouseId: uint64(v.WarehouseID),
+			ExpenseType: string(v.ExpenseType),
+			Amount:      v.Amount,
+		}
+	}
+
+	return &result, nil
 }
 
 // ExpenseReportDaily implements warehouse_iface.WarehouseFinanceServiceServer.
 func (w *warehouseFinImpl) ExpenseReportDaily(context.Context, *warehouse_iface.ExpenseReportDailyReq) (*warehouse_iface.ExpenseReportDailyRes, error) {
 	panic("unimplemented")
-}
-
-func NewWarehouseFinanceService() warehouse_iface.WarehouseFinanceServiceServer {
-	return &warehouseFinImpl{}
 }
