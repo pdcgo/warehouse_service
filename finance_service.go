@@ -45,24 +45,22 @@ func (w *warehouseFinImpl) ExpenseAccountCreate(ctx context.Context, payload *wa
 
 	name := strings.Trim(payload.Name, " ")
 	numberId := strings.Trim(payload.NumberId, " ")
-	err = w.db.Transaction(func(tx *gorm.DB) error {
+
+	db := w.db.WithContext(ctx)
+	err = db.Transaction(func(tx *gorm.DB) error {
 		accountService := warehouse_mutations.NewExpenseAccountService(tx, uint(payload.WarehouseId))
-		account, err := accountService.Create(name, numberId, payload.IsOpsAccount)
-		if err != nil {
-			return err
-		}
-		warehouse, err := accountService.Warehouse()
+		data, err := accountService.Create(name, numberId, payload.IsOpsAccount)
 		if err != nil {
 			return err
 		}
 
 		result = &warehouse_iface.ExpenseAccount{
-			Id:           uint64(account.ID),
+			Id:           uint64(data.AccountID),
 			WarehouseId:  payload.WarehouseId,
-			Name:         account.Name,
-			NumberId:     account.NumberID,
-			IsOpsAccount: warehouse.IsOpsAccount,
-			CreatedAt:    timestamppb.New(account.CreatedAt),
+			Name:         data.Account.Name,
+			NumberId:     data.Account.NumberID,
+			IsOpsAccount: data.IsOpsAccount,
+			CreatedAt:    timestamppb.New(data.Account.CreatedAt),
 		}
 
 		return nil
@@ -91,9 +89,10 @@ func (w *warehouseFinImpl) ExpenseAccountEdit(ctx context.Context, payload *ware
 	numberId := strings.Trim(payload.NumberId, " ")
 
 	var result *warehouse_iface.ExpenseAccount
-	err = w.db.Transaction(func(tx *gorm.DB) error {
+	db := w.db.WithContext(ctx)
+	err = db.Transaction(func(tx *gorm.DB) error {
 		accountService := warehouse_mutations.NewExpenseAccountService(tx, uint(payload.WarehouseId))
-		account, err := accountService.
+		data, err := accountService.
 			GetByQuery(true, func(tx *gorm.DB) *gorm.DB {
 				return tx.Where("ware_expense_accounts.id = ?", payload.AccountId)
 			})
@@ -106,18 +105,13 @@ func (w *warehouseFinImpl) ExpenseAccountEdit(ctx context.Context, payload *ware
 			return err
 		}
 
-		warehouse, err := accountService.Warehouse()
-		if err != nil {
-			return err
-		}
-
 		result = &warehouse_iface.ExpenseAccount{
-			Id:           uint64(account.ID),
-			NumberId:     account.NumberID,
-			Name:         account.Name,
-			IsOpsAccount: warehouse.IsOpsAccount,
+			Id:           uint64(data.Account.ID),
+			NumberId:     data.Account.NumberID,
+			Name:         data.Account.Name,
+			IsOpsAccount: data.IsOpsAccount,
 			WarehouseId:  uint64(payload.WarehouseId),
-			CreatedAt:    timestamppb.New(account.CreatedAt),
+			CreatedAt:    timestamppb.New(data.Account.CreatedAt),
 		}
 
 		return nil
@@ -135,7 +129,7 @@ func (w *warehouseFinImpl) ExpenseAccountGet(ctx context.Context, query *warehou
 	var result *warehouse_iface.ExpenseAccount
 	err := w.db.Transaction(func(tx *gorm.DB) error {
 		accountService := warehouse_mutations.NewExpenseAccountService(tx, uint(query.WarehouseId))
-		account, err := accountService.
+		data, err := accountService.
 			GetByQuery(false, func(tx *gorm.DB) *gorm.DB {
 				return tx.
 					Where("ware_expense_accounts.id = ?", query.Id).
@@ -146,18 +140,13 @@ func (w *warehouseFinImpl) ExpenseAccountGet(ctx context.Context, query *warehou
 			return err
 		}
 
-		warehouse, err := accountService.Warehouse()
-		if err != nil {
-			return err
-		}
-
 		result = &warehouse_iface.ExpenseAccount{
-			Id:           uint64(account.ID),
-			NumberId:     account.NumberID,
-			Name:         account.Name,
-			IsOpsAccount: warehouse.IsOpsAccount,
+			Id:           uint64(data.Account.ID),
+			NumberId:     data.Account.NumberID,
+			Name:         data.Account.Name,
+			IsOpsAccount: data.IsOpsAccount,
 			WarehouseId:  uint64(query.WarehouseId),
-			CreatedAt:    timestamppb.New(account.CreatedAt),
+			CreatedAt:    timestamppb.New(data.Account.CreatedAt),
 		}
 
 		return nil
@@ -173,7 +162,8 @@ func (w *warehouseFinImpl) ExpenseAccountGet(ctx context.Context, query *warehou
 func (w *warehouseFinImpl) ExpenseAccountList(ctx context.Context, query *warehouse_iface.ExpenseAccountListReq) (*warehouse_iface.ExpenseAccountListRes, error) {
 	data := []*models.WareExpenseAccountWarehouse{}
 
-	sqlQuery := w.db.Model(&models.WareExpenseAccountWarehouse{}).
+	db := w.db.WithContext(ctx)
+	sqlQuery := db.Model(&models.WareExpenseAccountWarehouse{}).
 		Joins("JOIN ware_expense_accounts ON ware_expense_accounts.id = ware_expense_account_warehouses.account_id")
 	if query.WarehouseId != 0 {
 		sqlQuery = sqlQuery.Where("ware_expense_account_warehouses.warehouse_id = ?", query.WarehouseId)
@@ -220,7 +210,8 @@ func (w *warehouseFinImpl) ExpenseAccountList(ctx context.Context, query *wareho
 func (w *warehouseFinImpl) ExpenseHistoryAdd(ctx context.Context, payload *warehouse_iface.ExpenseHistoryAddReq) (*warehouse_iface.ExpenseHistoryAddRes, error) {
 	identity := ctx.Value("identity").(*authorization.JwtIdentity)
 
-	err := w.db.Transaction(func(tx *gorm.DB) error {
+	db := w.db.WithContext(ctx)
+	err := db.Transaction(func(tx *gorm.DB) error {
 		histService := warehouse_mutations.NewExpenseHistService(tx, uint(payload.WarehouseId))
 		return histService.
 			Create(identity.From, uint(payload.AccountId), models.ExpenseType(payload.ExpenseType), payload.Amount)
@@ -236,7 +227,8 @@ func (w *warehouseFinImpl) ExpenseHistoryAdd(ctx context.Context, payload *wareh
 func (w *warehouseFinImpl) ExpenseHistoryList(ctx context.Context, query *warehouse_iface.ExpenseHistoryListReq) (*warehouse_iface.ExpenseHistoryListRes, error) {
 	result := warehouse_iface.ExpenseHistoryListRes{}
 
-	sqlQuery := w.db.Model(&models.WareExpenseHistory{}).
+	db := w.db.WithContext(ctx)
+	sqlQuery := db.Model(&models.WareExpenseHistory{}).
 		Joins("JOIN ware_expense_account_warehouses ON ware_expense_account_warehouses.account_id = ware_expense_histories.account_id AND ware_expense_account_warehouses.warehouse_id = ware_expense_histories").
 		Where("ware_expense_account_warehouses.is_ops_account = ?", query.IsOpsAccount)
 	if query.WarehouseId != 0 {

@@ -25,18 +25,8 @@ type expenseHistImpl struct {
 	warehouseID uint
 }
 
-var CanCreateExpense = map[db_models.TeamType]map[models.ExpenseType]bool{
-	db_models.WarehouseTeamType: {
-		"kitchen": true,
-		"other":   true,
-	},
-	db_models.AdminTeamType: {
-		"bank": true,
-	},
-}
-
 func (e *expenseHistImpl) Create(from db_models.TeamType, accountID uint, expenseType models.ExpenseType, amount float64) error {
-	if !CanCreateExpense[from][expenseType] {
+	if !models.CanCreateExpense[from][expenseType] {
 		return errors.New("not allowed create expense")
 	}
 

@@ -19,10 +19,9 @@ func NewExpenseAccountService(tx *gorm.DB, warehouseID uint) ExpenseAccount {
 var ErrExpenseAccountNotFound = errors.New("expense account not found")
 
 type ExpenseAccount interface {
-	GetByQuery(lock bool, query func(tx *gorm.DB) *gorm.DB) (*models.WareExpenseAccount, error)
+	GetByQuery(lock bool, query func(tx *gorm.DB) *gorm.DB) (*models.WareExpenseAccountWarehouse, error)
 	Update(name, numberId string) error
-	Warehouse() (*models.WareExpenseAccountWarehouse, error)
-	Create(name, numberId string, isOpsAccount bool) (*models.WareExpenseAccount, error)
+	Create(name, numberId string, isOpsAccount bool) (*models.WareExpenseAccountWarehouse, error)
 }
 
 type expenseAccountImpl struct {
@@ -30,11 +29,11 @@ type expenseAccountImpl struct {
 
 	warehouseId uint
 
-	data *models.WareExpenseAccount
+	data *models.WareExpenseAccountWarehouse
 }
 
-func (e *expenseAccountImpl) GetByQuery(lock bool, query func(tx *gorm.DB) *gorm.DB) (*models.WareExpenseAccount, error) {
-	e.data = &models.WareExpenseAccount{}
+func (e *expenseAccountImpl) GetByQuery(lock bool, query func(tx *gorm.DB) *gorm.DB) (*models.WareExpenseAccountWarehouse, error) {
+	e.data = &models.WareExpenseAccountWarehouse{}
 
 	tx := e.tx
 	if lock {
@@ -43,13 +42,17 @@ func (e *expenseAccountImpl) GetByQuery(lock bool, query func(tx *gorm.DB) *gorm
 			Options:  "NOWAIT",
 		})
 	}
-	tx = tx.Model(&models.WareExpenseAccount{}).
-		Joins("JOIN ware_expense_account_warehouses ON ware_expense_account_warehouses.account_id = ware_expense_accounts.id").
-		Where("ware_expense_account_warehouses.warehouse_id = ?", e.warehouseId)
+	tx = tx.Model(&models.WareExpenseAccountWarehouse{}).
+		Joins("JOIN ware_expense_accounts ON ware_expense_accounts.id = ware_expense_account_warehouses.account_id")
+	if e.warehouseId != 0 {
+		tx = tx.Where("ware_expense_account_warehouses.warehouse_id = ?", e.warehouseId)
+	}
 	if query != nil {
 		tx = query(tx)
 	}
-	err := tx.Find(e.data).Error
+	err := tx.
+		Preload("Account").
+		Find(e.data).Error
 	if err != nil {
 		return nil, err
 	}
@@ -57,11 +60,6 @@ func (e *expenseAccountImpl) GetByQuery(lock bool, query func(tx *gorm.DB) *gorm
 	if e.data.ID == 0 {
 		return nil, ErrExpenseAccountNotFound
 	}
-
-	return e.data, nil
-}
-
-func (e *expenseAccountImpl) Get(lock bool) (*models.WareExpenseAccount, error) {
 
 	return e.data, nil
 }
@@ -81,30 +79,13 @@ func (e *expenseAccountImpl) Update(name, numberId string) error {
 		return err
 	}
 
-	e.data.Name = name
-	e.data.NumberID = numberId
+	e.data.Account.Name = name
+	e.data.Account.NumberID = numberId
 
 	return nil
 }
 
-func (e *expenseAccountImpl) Warehouse() (*models.WareExpenseAccountWarehouse, error) {
-	if e.data == nil {
-		return nil, errors.New("expense account not initialized")
-	}
-
-	result := models.WareExpenseAccountWarehouse{}
-	err := e.tx.Model(&models.WareExpenseAccountWarehouse{}).
-		Where("ware_expense_account_warehouses.account_id = ?", e.data.ID).
-		Where("ware_expense_account_warehouses.warehouse_id = ?", e.warehouseId).
-		First(&result).Error
-	if err != nil {
-		return nil, err
-	}
-
-	return &result, nil
-}
-
-func (e *expenseAccountImpl) Create(name, numberId string, isOpsAccount bool) (*models.WareExpenseAccount, error) {
+func (e *expenseAccountImpl) Create(name, numberId string, isOpsAccount bool) (*models.WareExpenseAccountWarehouse, error) {
 	account, err := e.GetByQuery(false, func(tx *gorm.DB) *gorm.DB {
 		return tx.
 			Where("ware_expense_account_warehouses.warehouse_id = ?", e.warehouseId).
@@ -155,7 +136,8 @@ func (e *expenseAccountImpl) Create(name, numberId string, isOpsAccount bool) (*
 		return nil, err
 	}
 
-	e.data = &wareExpenseAccount
+	wareExpenseAccountWarehouse.Account = &wareExpenseAccount
+	e.data = &wareExpenseAccountWarehouse
 
-	return &wareExpenseAccount, nil
+	return e.data, nil
 }
