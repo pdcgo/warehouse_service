@@ -29,7 +29,7 @@ type warehouseFinImpl struct {
 }
 
 // ExpenseAccountCreate implements warehouse_iface.WarehouseFinanceServiceServer.
-func (w *warehouseFinImpl) ExpenseAccountCreate(ctx context.Context, payload *warehouse_iface.ExpenseAccountCreateReq) (*warehouse_iface.ExpenseAccount, error) {
+func (w *warehouseFinImpl) ExpenseAccountCreate(ctx context.Context, payload *warehouse_iface.ExpenseAccountCreateReq) (*warehouse_iface.WarehouseExpenseAccount, error) {
 	identity := ctx.Value("identity").(*authorization.JwtIdentity)
 	err := w.auth.HasPermission(identity, authorization_iface.CheckPermissionGroup{
 		&models.WareExpenseAccount{}: &authorization_iface.CheckPermission{
@@ -41,7 +41,7 @@ func (w *warehouseFinImpl) ExpenseAccountCreate(ctx context.Context, payload *wa
 		return nil, err
 	}
 
-	var result *warehouse_iface.ExpenseAccount
+	var result *warehouse_iface.WarehouseExpenseAccount
 
 	name := strings.Trim(payload.Name, " ")
 	numberId := strings.Trim(payload.NumberId, " ")
@@ -54,7 +54,7 @@ func (w *warehouseFinImpl) ExpenseAccountCreate(ctx context.Context, payload *wa
 			return err
 		}
 
-		result = &warehouse_iface.ExpenseAccount{
+		result = &warehouse_iface.WarehouseExpenseAccount{
 			Id:           uint64(data.AccountID),
 			WarehouseId:  payload.WarehouseId,
 			Name:         data.Account.Name,
@@ -73,7 +73,7 @@ func (w *warehouseFinImpl) ExpenseAccountCreate(ctx context.Context, payload *wa
 }
 
 // ExpenseAccountEdit implements warehouse_iface.WarehouseFinanceServiceServer.
-func (w *warehouseFinImpl) ExpenseAccountEdit(ctx context.Context, payload *warehouse_iface.ExpenseAccountEditReq) (*warehouse_iface.ExpenseAccount, error) {
+func (w *warehouseFinImpl) ExpenseAccountEdit(ctx context.Context, payload *warehouse_iface.ExpenseAccountEditReq) (*warehouse_iface.WarehouseExpenseAccount, error) {
 	identity := ctx.Value("identity").(*authorization.JwtIdentity)
 	err := w.auth.HasPermission(identity, authorization_iface.CheckPermissionGroup{
 		&models.WareExpenseAccount{}: &authorization_iface.CheckPermission{
@@ -88,7 +88,7 @@ func (w *warehouseFinImpl) ExpenseAccountEdit(ctx context.Context, payload *ware
 	name := strings.Trim(payload.Name, " ")
 	numberId := strings.Trim(payload.NumberId, " ")
 
-	var result *warehouse_iface.ExpenseAccount
+	var result *warehouse_iface.WarehouseExpenseAccount
 	db := w.db.WithContext(ctx)
 	err = db.Transaction(func(tx *gorm.DB) error {
 		accountService := warehouse_mutations.NewExpenseAccountService(tx, uint(payload.WarehouseId))
@@ -105,7 +105,7 @@ func (w *warehouseFinImpl) ExpenseAccountEdit(ctx context.Context, payload *ware
 			return err
 		}
 
-		result = &warehouse_iface.ExpenseAccount{
+		result = &warehouse_iface.WarehouseExpenseAccount{
 			Id:           uint64(data.Account.ID),
 			NumberId:     data.Account.NumberID,
 			Name:         data.Account.Name,
@@ -124,9 +124,9 @@ func (w *warehouseFinImpl) ExpenseAccountEdit(ctx context.Context, payload *ware
 }
 
 // ExpenseAccountGet implements warehouse_iface.WarehouseFinanceServiceServer.
-func (w *warehouseFinImpl) ExpenseAccountGet(ctx context.Context, query *warehouse_iface.ExpenseAccountGetReq) (*warehouse_iface.ExpenseAccount, error) {
+func (w *warehouseFinImpl) ExpenseAccountGet(ctx context.Context, query *warehouse_iface.ExpenseAccountGetReq) (*warehouse_iface.WarehouseExpenseAccount, error) {
 
-	var result *warehouse_iface.ExpenseAccount
+	var result *warehouse_iface.WarehouseExpenseAccount
 	err := w.db.Transaction(func(tx *gorm.DB) error {
 		accountService := warehouse_mutations.NewExpenseAccountService(tx, uint(query.WarehouseId))
 		data, err := accountService.
@@ -140,7 +140,7 @@ func (w *warehouseFinImpl) ExpenseAccountGet(ctx context.Context, query *warehou
 			return err
 		}
 
-		result = &warehouse_iface.ExpenseAccount{
+		result = &warehouse_iface.WarehouseExpenseAccount{
 			Id:           uint64(data.Account.ID),
 			NumberId:     data.Account.NumberID,
 			Name:         data.Account.Name,
@@ -186,14 +186,14 @@ func (w *warehouseFinImpl) ExpenseAccountList(ctx context.Context, query *wareho
 	}
 
 	results := warehouse_iface.ExpenseAccountListRes{
-		Data: make([]*warehouse_iface.ExpenseAccount, len(data)),
+		Data: make([]*warehouse_iface.WarehouseExpenseAccount, len(data)),
 	}
 	for i, v := range data {
 		if v.Account == nil {
 			return nil, errors.New("account not found")
 		}
 
-		results.Data[i] = &warehouse_iface.ExpenseAccount{
+		results.Data[i] = &warehouse_iface.WarehouseExpenseAccount{
 			Id:           uint64(v.AccountID),
 			NumberId:     v.Account.NumberID,
 			Name:         v.Account.Name,
@@ -213,14 +213,38 @@ func (w *warehouseFinImpl) ExpenseHistoryAdd(ctx context.Context, payload *wareh
 	db := w.db.WithContext(ctx)
 	err := db.Transaction(func(tx *gorm.DB) error {
 		histService := warehouse_mutations.NewExpenseHistService(tx, uint(payload.WarehouseId))
+
 		return histService.
-			Create(identity.From, uint(payload.AccountId), models.ExpenseType(payload.ExpenseType), payload.Amount)
+			WithAccountID(uint(payload.AccountId)).
+			From(identity.UserID, identity.From).
+			Create(models.ExpenseType(payload.ExpenseType), payload.At, payload.Amount)
 	})
 	if err != nil {
 		return nil, err
 	}
 
 	return &warehouse_iface.ExpenseHistoryAddRes{}, nil
+}
+
+// ExpenseHistoryAdd implements warehouse_iface.WarehouseFinanceServiceServer.
+func (w *warehouseFinImpl) ExpenseHistoryEdit(ctx context.Context, payload *warehouse_iface.ExpenseHistoryEditReq) (*warehouse_iface.ExpenseHistoryEditRes, error) {
+	identity := ctx.Value("identity").(*authorization.JwtIdentity)
+
+	db := w.db.WithContext(ctx)
+	err := db.Transaction(func(tx *gorm.DB) error {
+		histService := warehouse_mutations.NewExpenseHistService(tx, uint(payload.WarehouseId))
+
+		return histService.
+			WithExpenseHistID(uint(payload.HistId)).
+			WithAccountID(uint(payload.AccountId)).
+			From(identity.UserID, identity.From).
+			Update(models.ExpenseType(payload.ExpenseType), payload.At, payload.Amount)
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &warehouse_iface.ExpenseHistoryEditRes{}, nil
 }
 
 // ExpenseHistoryList implements warehouse_iface.WarehouseFinanceServiceServer.
@@ -258,9 +282,9 @@ func (w *warehouseFinImpl) ExpenseHistoryList(ctx context.Context, query *wareho
 		return nil, err
 	}
 
-	result.Data = make([]*warehouse_iface.ExpenseHistory, len(data))
+	result.Data = make([]*warehouse_iface.WarehouseExpenseHistory, len(data))
 	for i, v := range data {
-		result.Data[i] = &warehouse_iface.ExpenseHistory{
+		result.Data[i] = &warehouse_iface.WarehouseExpenseHistory{
 			Id:          uint64(v.ID),
 			AccountId:   uint64(v.AccountID),
 			WarehouseId: uint64(v.WarehouseID),

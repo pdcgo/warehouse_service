@@ -1,6 +1,7 @@
 package models
 
 import (
+	"slices"
 	"time"
 
 	"github.com/pdcgo/shared/db_models"
@@ -38,6 +39,11 @@ func (ExpenseType) EnumList() []string {
 		"kitchen",
 		"other",
 	}
+}
+
+func (t ExpenseType) NeedAdminPermission() bool {
+	values := []ExpenseType{ExpenseTypeBank, ExpenseTypeBasicSalary, ExpenseTypeBonusSalary}
+	return slices.Contains(values, t)
 }
 
 type WareExpenseAccount struct {
