@@ -48,19 +48,22 @@ func (w *warehouseFinImpl) ExpenseAccountCreate(ctx context.Context, payload *wa
 
 	db := w.db.WithContext(ctx)
 	err = db.Transaction(func(tx *gorm.DB) error {
-		accountService := warehouse_mutations.NewExpenseAccountService(tx, uint(payload.WarehouseId))
-		data, err := accountService.Create(name, numberId, payload.IsOpsAccount)
+		createAccount := warehouse_mutations.NewCreateWarehouseExpenseAccount(tx, identity)
+		data, err := createAccount.
+			Create(uint(payload.WarehouseId), uint(payload.AccountTypeId), name, numberId, payload.IsOpsAccount)
 		if err != nil {
 			return err
 		}
 
 		result = &warehouse_iface.WarehouseExpenseAccount{
-			Id:           uint64(data.AccountID),
-			WarehouseId:  payload.WarehouseId,
-			Name:         data.Account.Name,
-			NumberId:     data.Account.NumberID,
-			IsOpsAccount: data.IsOpsAccount,
-			CreatedAt:    timestamppb.New(data.Account.CreatedAt),
+			Id:            uint64(data.AccountID),
+			WarehouseId:   uint64(data.WarehouseID),
+			AccountTypeId: uint64(data.Account.AccountTypeID),
+			Name:          data.Account.Name,
+			NumberId:      data.Account.NumberID,
+			IsOpsAccount:  data.IsOpsAccount,
+			Disabled:      data.Account.Disabled,
+			CreatedAt:     timestamppb.New(data.Account.CreatedAt),
 		}
 
 		return nil
@@ -100,18 +103,20 @@ func (w *warehouseFinImpl) ExpenseAccountEdit(ctx context.Context, payload *ware
 			return err
 		}
 
-		err = accountService.Update(name, numberId)
+		err = accountService.Update(uint(payload.AccountTypeId), name, numberId)
 		if err != nil {
 			return err
 		}
 
 		result = &warehouse_iface.WarehouseExpenseAccount{
-			Id:           uint64(data.Account.ID),
-			NumberId:     data.Account.NumberID,
-			Name:         data.Account.Name,
-			IsOpsAccount: data.IsOpsAccount,
-			WarehouseId:  uint64(payload.WarehouseId),
-			CreatedAt:    timestamppb.New(data.Account.CreatedAt),
+			Id:            uint64(data.Account.ID),
+			WarehouseId:   uint64(payload.WarehouseId),
+			AccountTypeId: uint64(data.Account.AccountTypeID),
+			Disabled:      data.Account.Disabled,
+			Name:          data.Account.Name,
+			NumberId:      data.Account.NumberID,
+			IsOpsAccount:  data.IsOpsAccount,
+			CreatedAt:     timestamppb.New(data.Account.CreatedAt),
 		}
 
 		return nil
