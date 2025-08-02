@@ -31,7 +31,22 @@ type WarehouseExpenseQuery interface {
 	WithTypes(expenseTypes []models.ExpenseType) WarehouseExpenseQuery
 	CreatedTime(timeMin, timeMax *time.Time) WarehouseExpenseQuery
 	ExpenseAt(timeMin, timeMax *time.Time) WarehouseExpenseQuery
+	FlowType(flowType FlowType) WarehouseExpenseQuery
 	GetQuery() *gorm.DB
+}
+
+type FlowType string
+
+const (
+	FlowTypeIncome  FlowType = "income"
+	FlowTypeOutcome FlowType = "outcome"
+)
+
+func (FlowType) EnumList() []string {
+	return []string{
+		"income",
+		"outcome",
+	}
 }
 
 type warehouseExpenseQueryImpl struct {
@@ -113,5 +128,19 @@ func (w *warehouseExpenseQueryImpl) ExpenseAt(timeMin, timeMax *time.Time) Wareh
 	if timeMax != nil {
 		w.tx = w.tx.Where("ware_expense_histories.at <= ?", timeMax)
 	}
+	return w
+}
+
+func (w *warehouseExpenseQueryImpl) FlowType(flowType FlowType) WarehouseExpenseQuery {
+	if flowType == "" {
+		return w
+	}
+	switch flowType {
+	case FlowTypeIncome:
+		w.tx = w.tx.Where("ware_expense_histories >= 0")
+	case FlowTypeOutcome:
+		w.tx = w.tx.Where("ware_expense_histories < 0")
+	}
+
 	return w
 }
