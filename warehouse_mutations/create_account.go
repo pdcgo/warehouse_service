@@ -59,7 +59,7 @@ func (w *createWarehouseExpenseAccountImpl) Create(warehouseID, accountTypeID ui
 		WarehouseID:  uint(warehouseID),
 		IsOpsAccount: isOpsAccount,
 	}
-	err = w.tx.Create(&account).Error
+	err = w.tx.Create(&wareExpenseAccountWarehouse).Error
 	if err != nil {
 		return nil, err
 	}
