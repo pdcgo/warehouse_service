@@ -22,6 +22,7 @@ type ExpenseAccount interface {
 	GetByQuery(lock bool, query func(tx *gorm.DB) *gorm.DB) (*models.WareExpenseAccountWarehouse, error)
 	Update(name, numberId string) error
 	Create(name, numberId string, isOpsAccount bool) (*models.WareExpenseAccountWarehouse, error)
+	Disabled(isDisabled bool) error
 }
 
 type expenseAccountImpl struct {
@@ -81,6 +82,26 @@ func (e *expenseAccountImpl) Update(name, numberId string) error {
 
 	e.data.Account.Name = name
 	e.data.Account.NumberID = numberId
+
+	return nil
+}
+
+// Disabled implements ExpenseAccount.
+func (e *expenseAccountImpl) Disabled(isDisabled bool) error {
+	if e.data == nil {
+		return errors.New("expense account not initialized")
+	}
+
+	err := e.tx.Model(&models.WareExpenseAccount{}).
+		Where("ware_expense_accounts.id = ?", e.data.ID).
+		Updates(map[string]interface{}{
+			"disabled": isDisabled,
+		}).Error
+	if err != nil {
+		return err
+	}
+
+	e.data.Account.Disabled = isDisabled
 
 	return nil
 }

@@ -23,7 +23,7 @@ func NewWarehouseExpenseQuery(tx *gorm.DB, lock bool) WarehouseExpenseQuery {
 }
 
 type WarehouseExpenseQuery interface {
-	WithID(histID uint) WarehouseExpenseQuery
+	WithHistID(histID uint) WarehouseExpenseQuery
 	FromWarehouse(warehouseID uint) WarehouseExpenseQuery
 	FromAccount(accountID uint) WarehouseExpenseQuery
 	CreatedBy(userID uint) WarehouseExpenseQuery
@@ -43,7 +43,7 @@ func (w *warehouseExpenseQueryImpl) GetQuery() *gorm.DB {
 	return w.tx
 }
 
-func (w *warehouseExpenseQueryImpl) WithID(histID uint) WarehouseExpenseQuery {
+func (w *warehouseExpenseQueryImpl) WithHistID(histID uint) WarehouseExpenseQuery {
 	if histID == 0 {
 		return w
 	}
