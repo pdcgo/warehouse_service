@@ -199,12 +199,14 @@ func (w *warehouseFinImpl) ExpenseAccountList(ctx context.Context, query *wareho
 		}
 
 		results.Data[i] = &warehouse_iface.WarehouseExpenseAccount{
-			Id:           uint64(v.AccountID),
-			NumberId:     v.Account.NumberID,
-			Name:         v.Account.Name,
-			WarehouseId:  uint64(v.WarehouseID),
-			IsOpsAccount: v.IsOpsAccount,
-			CreatedAt:    timestamppb.New(v.Account.CreatedAt),
+			Id:            uint64(v.AccountID),
+			WarehouseId:   uint64(v.WarehouseID),
+			AccountTypeId: uint64(v.Account.AccountTypeID),
+			Name:          v.Account.Name,
+			NumberId:      v.Account.NumberID,
+			Disabled:      v.Account.Disabled,
+			IsOpsAccount:  v.IsOpsAccount,
+			CreatedAt:     timestamppb.New(v.Account.CreatedAt),
 		}
 	}
 
@@ -217,12 +219,20 @@ func (w *warehouseFinImpl) ExpenseHistoryAdd(ctx context.Context, payload *wareh
 
 	db := w.db.WithContext(ctx)
 	err := db.Transaction(func(tx *gorm.DB) error {
-		histService := warehouse_mutations.NewExpenseHistService(tx, uint(payload.WarehouseId))
+		histService := warehouse_mutations.NewExpenseHistService(tx, identity)
+
+		_, err := histService.GetAccount(uint(payload.AccountId), uint(payload.WarehouseId))
+		if err != nil {
+			return err
+		}
 
 		return histService.
-			WithAccountID(uint(payload.AccountId)).
-			From(identity.UserID, identity.From).
-			Create(models.ExpenseType(payload.ExpenseType), payload.At, payload.Amount)
+			Create(identity.From, &warehouse_mutations.CreateExpensePayload{
+				ExpenseType: models.ExpenseType(payload.ExpenseType),
+				At:          payload.At.AsTime(),
+				Amount:      payload.Amount,
+				Note:        payload.Note,
+			})
 	})
 	if err != nil {
 		return nil, err
@@ -237,13 +247,22 @@ func (w *warehouseFinImpl) ExpenseHistoryEdit(ctx context.Context, payload *ware
 
 	db := w.db.WithContext(ctx)
 	err := db.Transaction(func(tx *gorm.DB) error {
-		histService := warehouse_mutations.NewExpenseHistService(tx, uint(payload.WarehouseId))
+		histService := warehouse_mutations.NewExpenseHistService(tx, identity)
+
+		_, err := histService.GetExpense(uint(payload.HistId))
+		if err != nil {
+			return err
+		}
 
 		return histService.
-			WithExpenseHistID(uint(payload.HistId)).
-			WithAccountID(uint(payload.AccountId)).
-			From(identity.UserID, identity.From).
-			Update(models.ExpenseType(payload.ExpenseType), payload.At, payload.Amount)
+			Update(identity.From, &warehouse_mutations.UpdateWareExpenseHistPayload{
+				WarehouseID: uint(payload.WarehouseId),
+				AccountID:   uint(payload.AccountId),
+				ExpenseType: models.ExpenseType(payload.ExpenseType),
+				Amount:      payload.Amount,
+				At:          payload.At.AsTime(),
+				Note:        payload.Note,
+			})
 	})
 	if err != nil {
 		return nil, err

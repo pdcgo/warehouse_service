@@ -30,6 +30,7 @@ type WarehouseBalanceHistQuery interface {
 	CreatedBy(userID uint) WarehouseBalanceHistQuery
 	BalanceAt(at *time.Time) WarehouseBalanceHistQuery
 	CreatedTime(timeMin, timeMax *time.Time) WarehouseBalanceHistQuery
+	BalanceTime(timeMin, timeMax *time.Time) WarehouseBalanceHistQuery
 	GetQuery() *gorm.DB
 }
 
@@ -80,7 +81,7 @@ func (w *warehouseBalanceHistQueryImpl) BalanceAt(at *time.Time) WarehouseBalanc
 		return w
 	}
 
-	field := "DATE('ware_balance_account_histories.at')"
+	field := "DATE(ware_balance_account_histories.at AT TIME ZONE 'Asia/Jakarta')"
 	if w.tx.Dialector.Name() == "sqlite" {
 		field = "DATE(ware_balance_account_histories.at, 'localtime')"
 	}
@@ -95,6 +96,16 @@ func (w *warehouseBalanceHistQueryImpl) CreatedTime(timeMin, timeMax *time.Time)
 	}
 	if timeMax != nil {
 		w.tx = w.tx.Where("ware_balance_account_histories.created_at <= ?", timeMax)
+	}
+	return w
+}
+
+func (w *warehouseBalanceHistQueryImpl) BalanceTime(timeMin, timeMax *time.Time) WarehouseBalanceHistQuery {
+	if timeMin != nil {
+		w.tx = w.tx.Where("ware_balance_account_histories.at >= ?", timeMin)
+	}
+	if timeMax != nil {
+		w.tx = w.tx.Where("ware_balance_account_histories.at <= ?", timeMax)
 	}
 	return w
 }

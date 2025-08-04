@@ -5,135 +5,142 @@ import (
 	"time"
 
 	"github.com/pdcgo/shared/db_models"
+	"github.com/pdcgo/shared/interfaces/identity_iface"
 	"github.com/pdcgo/warehouse_service/models"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"gorm.io/gorm"
 )
 
-func NewExpenseHistService(tx *gorm.DB, warehouseID uint) ExpenseHist {
+func NewExpenseHistService(tx *gorm.DB, agent identity_iface.Agent) ExpenseHist {
 	return &expenseHistImpl{
-		tx: tx,
-		data: &models.WareExpenseHistory{
-			WarehouseID: warehouseID,
-		},
+		tx:    tx,
+		agent: agent,
 	}
 }
 
 type ExpenseHist interface {
-	From(userID uint, teamType db_models.TeamType) ExpenseHist
-	WithAccountID(accountID uint) ExpenseHist
-	WithExpenseHistID(histID uint) ExpenseHist
-	Create(expenseType models.ExpenseType, at *timestamppb.Timestamp, amount float64) error
-	Update(expenseType models.ExpenseType, at *timestamppb.Timestamp, amount float64) error
+	GetAccount(accountID, warehouseID uint) (*models.WareExpenseAccountWarehouse, error)
+	Create(from db_models.TeamType, payload *CreateExpensePayload) error
+	GetExpense(expenseHistID uint) (*models.WareExpenseHistory, error)
+	Update(from db_models.TeamType, payload *UpdateWareExpenseHistPayload) error
 }
 
 type expenseHistImpl struct {
-	tx *gorm.DB
+	tx    *gorm.DB
+	agent identity_iface.Agent
 
-	data *models.WareExpenseHistory
-	from db_models.TeamType
+	account *models.WareExpenseAccountWarehouse
+	data    *models.WareExpenseHistory
 }
 
-func (e *expenseHistImpl) From(userID uint, teamType db_models.TeamType) ExpenseHist {
-	e.from = teamType
-	e.data.CreatedByID = userID
-	return e
-}
-
-func (e *expenseHistImpl) WithAccountID(accountID uint) ExpenseHist {
-	e.data.AccountID = accountID
-	return e
-}
-
-func (e *expenseHistImpl) WithExpenseHistID(histID uint) ExpenseHist {
-	e.data.ID = histID
-	return e
-}
-
-func (e *expenseHistImpl) Create(expenseType models.ExpenseType, at *timestamppb.Timestamp, amount float64) error {
-	if e.from == "" {
-		err := errors.New("invalid expense created from")
-		return err
-	}
-	if !models.CanCreateExpense[e.from][expenseType] {
-		return errors.New("not allowed create expense")
-	}
-
-	expense := e.data
-	if expense.AccountID == 0 {
-		err := errors.New("account_id not initialized")
-		return err
-	}
+func (e *expenseHistImpl) GetAccount(accountID, warehouseID uint) (*models.WareExpenseAccountWarehouse, error) {
 
 	sqlQuery := e.tx.Model(&models.WareExpenseAccountWarehouse{})
-	if expense.WarehouseID != 0 {
-		sqlQuery = sqlQuery.Where("ware_expense_account_warehouses.warehouse_id = ?", expense.WarehouseID)
+	if accountID != 0 {
+		sqlQuery = sqlQuery.Where("ware_expense_account_warehouses.account_id = ?", accountID)
 	}
-	if expense.AccountID != 0 {
-		sqlQuery = sqlQuery.Where("ware_expense_account_warehouses.account_id = ?", expense.AccountID)
+	if warehouseID != 0 {
+		sqlQuery = sqlQuery.Where("ware_expense_account_warehouses.warehouse_id = ?", warehouseID)
 	}
-
-	account := models.WareExpenseAccountWarehouse{}
-	err := sqlQuery.Find(&account).Error
+	err := sqlQuery.
+		Preload("Account").
+		Find(&e.account).Error
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if account.ID == 0 {
+	if e.account.ID == 0 {
 		err := errors.New("account not found")
-		return err
+		return nil, err
 	}
 
-	expense.ExpenseType = expenseType
-	expense.Amount = amount
-	expense.At = at.AsTime()
-	expense.CreatedAt = time.Now()
+	return e.account, nil
+}
 
-	err = e.tx.Create(&expense).Error
+type CreateExpensePayload struct {
+	ExpenseType models.ExpenseType
+	At          time.Time
+	Amount      float64
+	Note        string
+}
+
+func (e *expenseHistImpl) Create(from db_models.TeamType, payload *CreateExpensePayload) error {
+	if !models.CanCreateExpense[from][payload.ExpenseType] {
+		return errors.New("not allowed create expense")
+	}
+	if e.account == nil {
+		return errors.New("account not initialized")
+	}
+
+	expense := models.WareExpenseHistory{
+		WarehouseID: e.account.WarehouseID,
+		AccountID:   e.account.AccountID,
+		CreatedByID: e.agent.GetUserID(),
+		ExpenseType: payload.ExpenseType,
+		Amount:      payload.Amount,
+		Note:        payload.Note,
+		At:          payload.At,
+		CreatedAt:   time.Now(),
+	}
+	err := e.tx.Create(expense).Error
 	if err != nil {
 		return err
 	}
+
+	e.data = &expense
 
 	return nil
 }
 
-func (e *expenseHistImpl) Update(expenseType models.ExpenseType, at *timestamppb.Timestamp, amount float64) error {
-	if e.data.ID != 0 {
-		err := errors.New("warehouse expense hist_id is empty")
-		return err
-	}
-
-	expense := models.WareExpenseHistory{}
+func (e *expenseHistImpl) GetExpense(expenseHistID uint) (*models.WareExpenseHistory, error) {
 	err := e.tx.Model(&models.WareExpenseHistory{}).
-		Where("ware_expense_histories.id = ?", e.data.ID).
-		First(&expense).Error
+		Where("ware_expense_histories.id = ?", expenseHistID).
+		First(&e.data).Error
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	if e.data.WarehouseID != expense.WarehouseID {
-		if e.from != db_models.AdminTeamType {
+	return e.data, nil
+}
+
+type UpdateWareExpenseHistPayload struct {
+	WarehouseID uint               `json:"warehouse_id"`
+	AccountID   uint               `json:"account_id"`
+	CreatedByID uint               `json:"created_by_id"`
+	ExpenseType models.ExpenseType `json:"expense_type"`
+	Amount      float64            `json:"amount"`
+	Note        string             `json:"note"`
+	At          time.Time          `json:"at"`
+}
+
+func (e *expenseHistImpl) Update(from db_models.TeamType, payload *UpdateWareExpenseHistPayload) error {
+	if e.data == nil {
+		return errors.New("expense data not initialized")
+	}
+
+	if e.data.WarehouseID != payload.WarehouseID {
+		if from != db_models.AdminTeamType {
 			err := errors.New("can't change warehouse expense")
 			return err
 		}
-		expense.WarehouseID = e.data.WarehouseID
+		e.data.WarehouseID = payload.WarehouseID
 	}
 
-	if e.data.ExpenseType != expense.ExpenseType {
-		if e.data.ExpenseType.NeedAdminPermission() || expense.ExpenseType.NeedAdminPermission() {
-			if e.from != db_models.AdminTeamType {
+	if e.data.ExpenseType != payload.ExpenseType {
+		if e.data.ExpenseType.NeedAdminPermission() || payload.ExpenseType.NeedAdminPermission() {
+			if from != db_models.AdminTeamType {
 				err := errors.New("need admin permission for update")
 				return err
 			}
 
-			expense.ExpenseType = e.data.ExpenseType
+			e.data.ExpenseType = payload.ExpenseType
 		}
 	}
 
-	expense.ExpenseType = expenseType
-	expense.Amount = amount
-	expense.At = at.AsTime()
-	expense.CreatedAt = time.Now()
-	err = e.tx.Save(expense).Error
+	e.data.AccountID = payload.AccountID
+	e.data.CreatedByID = e.agent.GetUserID()
+	e.data.Note = payload.Note
+	e.data.At = payload.At
+	e.data.Amount = payload.Amount
+	err := e.tx.Save(e.data).Error
 	if err != nil {
 		return err
 	}

@@ -192,6 +192,7 @@ func TestFinanceService(t *testing.T) {
 					})
 					assert.Nil(t, err)
 					assert.NotNil(t, results)
+					assert.NotNil(t, results.Data)
 				})
 			})
 		},
