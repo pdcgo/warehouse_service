@@ -23,14 +23,15 @@ func NewWarehouseExpenseQuery(tx *gorm.DB, lock bool) WarehouseExpenseQuery {
 }
 
 type WarehouseExpenseQuery interface {
+	WithQuery(tx *gorm.DB) WarehouseExpenseQuery
 	WithHistID(histID uint) WarehouseExpenseQuery
 	FromWarehouse(warehouseID uint) WarehouseExpenseQuery
 	FromAccount(accountID uint) WarehouseExpenseQuery
 	CreatedBy(userID uint) WarehouseExpenseQuery
 	WithType(expenseType models.ExpenseType) WarehouseExpenseQuery
 	WithTypes(expenseTypes []models.ExpenseType) WarehouseExpenseQuery
-	CreatedTime(timeMin, timeMax *time.Time) WarehouseExpenseQuery
-	ExpenseAt(timeMin, timeMax *time.Time) WarehouseExpenseQuery
+	CreatedTime(timeMin, timeMax time.Time) WarehouseExpenseQuery
+	ExpenseAt(timeMin, timeMax time.Time) WarehouseExpenseQuery
 	FlowType(flowType FlowType) WarehouseExpenseQuery
 	GetQuery() *gorm.DB
 }
@@ -51,6 +52,12 @@ func (FlowType) EnumList() []string {
 
 type warehouseExpenseQueryImpl struct {
 	tx *gorm.DB
+}
+
+// WithQuery implements WarehouseExpenseQuery.
+func (w *warehouseExpenseQueryImpl) WithQuery(tx *gorm.DB) WarehouseExpenseQuery {
+	w.tx = tx
+	return w
 }
 
 // getQuery implements WarehouseExpenseQuery.
@@ -111,21 +118,21 @@ func (w *warehouseExpenseQueryImpl) WithTypes(expenseTypes []models.ExpenseType)
 	return w
 }
 
-func (w *warehouseExpenseQueryImpl) CreatedTime(timeMin, timeMax *time.Time) WarehouseExpenseQuery {
-	if timeMin != nil {
+func (w *warehouseExpenseQueryImpl) CreatedTime(timeMin, timeMax time.Time) WarehouseExpenseQuery {
+	if !timeMin.IsZero() {
 		w.tx = w.tx.Where("ware_expense_histories.created_at >= ?", timeMin)
 	}
-	if timeMax != nil {
+	if !timeMax.IsZero() {
 		w.tx = w.tx.Where("ware_expense_histories.created_at <= ?", timeMax)
 	}
 	return w
 }
 
-func (w *warehouseExpenseQueryImpl) ExpenseAt(timeMin, timeMax *time.Time) WarehouseExpenseQuery {
-	if timeMin != nil {
+func (w *warehouseExpenseQueryImpl) ExpenseAt(timeMin, timeMax time.Time) WarehouseExpenseQuery {
+	if !timeMin.IsZero() {
 		w.tx = w.tx.Where("ware_expense_histories.at >= ?", timeMin)
 	}
-	if timeMax != nil {
+	if !timeMax.IsZero() {
 		w.tx = w.tx.Where("ware_expense_histories.at <= ?", timeMax)
 	}
 	return w

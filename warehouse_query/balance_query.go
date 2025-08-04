@@ -28,9 +28,9 @@ type WarehouseBalanceHistQuery interface {
 	FromWarehouse(warehouseID uint) WarehouseBalanceHistQuery
 	FromAccount(accountID uint) WarehouseBalanceHistQuery
 	CreatedBy(userID uint) WarehouseBalanceHistQuery
-	BalanceAt(at *time.Time) WarehouseBalanceHistQuery
-	CreatedTime(timeMin, timeMax *time.Time) WarehouseBalanceHistQuery
-	BalanceTime(timeMin, timeMax *time.Time) WarehouseBalanceHistQuery
+	BalanceAt(at time.Time) WarehouseBalanceHistQuery
+	CreatedTime(timeMin, timeMax time.Time) WarehouseBalanceHistQuery
+	BalanceTime(timeMin, timeMax time.Time) WarehouseBalanceHistQuery
 	GetQuery() *gorm.DB
 }
 
@@ -76,8 +76,8 @@ func (w *warehouseBalanceHistQueryImpl) CreatedBy(userID uint) WarehouseBalanceH
 }
 
 // In Day format
-func (w *warehouseBalanceHistQueryImpl) BalanceAt(at *time.Time) WarehouseBalanceHistQuery {
-	if at == nil {
+func (w *warehouseBalanceHistQueryImpl) BalanceAt(at time.Time) WarehouseBalanceHistQuery {
+	if at.IsZero() {
 		return w
 	}
 
@@ -90,21 +90,21 @@ func (w *warehouseBalanceHistQueryImpl) BalanceAt(at *time.Time) WarehouseBalanc
 	return w
 }
 
-func (w *warehouseBalanceHistQueryImpl) CreatedTime(timeMin, timeMax *time.Time) WarehouseBalanceHistQuery {
-	if timeMin != nil {
+func (w *warehouseBalanceHistQueryImpl) CreatedTime(timeMin, timeMax time.Time) WarehouseBalanceHistQuery {
+	if !timeMin.IsZero() {
 		w.tx = w.tx.Where("ware_balance_account_histories.created_at >= ?", timeMin)
 	}
-	if timeMax != nil {
+	if !timeMax.IsZero() {
 		w.tx = w.tx.Where("ware_balance_account_histories.created_at <= ?", timeMax)
 	}
 	return w
 }
 
-func (w *warehouseBalanceHistQueryImpl) BalanceTime(timeMin, timeMax *time.Time) WarehouseBalanceHistQuery {
-	if timeMin != nil {
+func (w *warehouseBalanceHistQueryImpl) BalanceTime(timeMin, timeMax time.Time) WarehouseBalanceHistQuery {
+	if !timeMin.IsZero() {
 		w.tx = w.tx.Where("ware_balance_account_histories.at >= ?", timeMin)
 	}
-	if timeMax != nil {
+	if !timeMax.IsZero() {
 		w.tx = w.tx.Where("ware_balance_account_histories.at <= ?", timeMax)
 	}
 	return w

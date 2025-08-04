@@ -69,11 +69,17 @@ func (w *warehouseExpenseAccountQueryImpl) IsDisabled(isDisabled bool) Warehouse
 }
 
 func (w *warehouseExpenseAccountQueryImpl) SearchName(name string) WarehouseExpenseAccountQuery {
+	if name == "" {
+		return w
+	}
 	w.tx = w.tx.Where("LOWER(ware_expense_accounts.name) LIKE ?", "%"+strings.ToLower(name)+"%")
 	return w
 }
 
 func (w *warehouseExpenseAccountQueryImpl) SearchNumberID(numberID string) WarehouseExpenseAccountQuery {
+	if numberID == "" {
+		return w
+	}
 	w.tx = w.tx.Where("LOWER(ware_expense_accounts.number_id) LIKE ?", "%"+strings.ToLower(numberID)+"%")
 	return w
 }

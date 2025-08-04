@@ -17,7 +17,7 @@ func NewWareBalanceHistMutation(tx *gorm.DB, agent identity_iface.Agent) WareBal
 }
 
 type WareBalanceAccountHistService interface {
-	Create(accountID uint, amount float64, at *time.Time) error
+	Create(accountID uint, amount float64, at time.Time) error
 }
 
 type wareBalanceAccountHistImpl struct {
@@ -28,7 +28,7 @@ type wareBalanceAccountHistImpl struct {
 	data    *models.WareBalanceAccountHistory
 }
 
-func (w *wareBalanceAccountHistImpl) Create(accountID uint, amount float64, at *time.Time) error {
+func (w *wareBalanceAccountHistImpl) Create(accountID uint, amount float64, at time.Time) error {
 	var err error
 	w.account = &models.WareExpenseAccountWarehouse{}
 	w.data = &models.WareBalanceAccountHistory{}
@@ -59,7 +59,7 @@ func (w *wareBalanceAccountHistImpl) Create(accountID uint, amount float64, at *
 			AccountID:   w.account.AccountID,
 			CreatedByID: w.agent.GetUserID(),
 			Amount:      amount,
-			At:          *at,
+			At:          at,
 			CreatedAt:   time.Now(),
 		}
 

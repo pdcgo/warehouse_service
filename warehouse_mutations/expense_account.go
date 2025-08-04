@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"github.com/pdcgo/warehouse_service/models"
+	"github.com/pdcgo/warehouse_service/warehouse_query"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -19,7 +20,7 @@ var ErrExpenseAccountNotFound = errors.New("expense account not found")
 
 type ExpenseAccount interface {
 	GetByQuery(lock bool, query func(tx *gorm.DB) *gorm.DB) (*models.WareExpenseAccountWarehouse, error)
-	Update(accountTypeID uint, name, numberId string) error
+	Update(accountTypeID uint, isOpsAccount bool, name, numberId string) error
 	Disabled(isDisabled bool) error
 }
 
@@ -63,13 +64,31 @@ func (e *expenseAccountImpl) GetByQuery(lock bool, query func(tx *gorm.DB) *gorm
 	return e.data, nil
 }
 
-func (e *expenseAccountImpl) Update(accountTypeID uint, name, numberId string) error {
+func (e *expenseAccountImpl) Update(accountTypeID uint, isOpsAccount bool, name, numberId string) error {
 	if e.data == nil {
 		return errors.New("expense account not initialized")
 	}
+	if isOpsAccount {
+		accountQuery := warehouse_query.NewWarehouseExpenseAccountQuery(e.tx, false)
+		sqlQuery := accountQuery.
+			FromWarehouse(e.warehouseId).
+			FromAccount(e.data.AccountID).
+			IsOpsAccount(true).
+			GetQuery()
+
+		accountOps := models.WareExpenseAccount{}
+		err := sqlQuery.Find(&accountOps).Error
+		if err != nil {
+			return err
+		}
+		if accountOps.ID != 0 {
+			err := errors.New("warehouse ops account already exist")
+			return err
+		}
+	}
 
 	err := e.tx.Model(&models.WareExpenseAccount{}).
-		Where("ware_expense_accounts.id = ?", e.data.ID).
+		Where("ware_expense_accounts.id = ?", e.data.AccountID).
 		Updates(map[string]interface{}{
 			"account_type_id": accountTypeID,
 			"name":            name,
@@ -79,8 +98,17 @@ func (e *expenseAccountImpl) Update(accountTypeID uint, name, numberId string) e
 		return err
 	}
 
+	err = e.tx.Model(&models.WareExpenseAccountWarehouse{}).
+		Where("ware_expense_account_warehouses.warehouse_id = ?", e.warehouseId).
+		Where("ware_expense_account_warehouses.account_id = ?", e.data.AccountID).
+		Update("is_ops_account", isOpsAccount).Error
+	if err != nil {
+		return err
+	}
+
 	e.data.Account.Name = name
 	e.data.Account.NumberID = numberId
+	e.data.IsOpsAccount = isOpsAccount
 
 	return nil
 }

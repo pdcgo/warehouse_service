@@ -108,7 +108,7 @@ func TestFinanceService(t *testing.T) {
 			ctx := context.Background()
 
 			t.Run("test create expense account", func(t *testing.T) {
-				payload := &warehouse_iface.ExpenseAccountCreateReq{
+				createAccountPayload := &warehouse_iface.ExpenseAccountCreateReq{
 					DomainId:     uint64(adminTeam.ID),
 					WarehouseId:  uint64(warehouseTeam.ID),
 					NumberId:     "303054897877844124",
@@ -125,11 +125,11 @@ func TestFinanceService(t *testing.T) {
 						From:   db_models.AdminTeamType,
 					})
 
-					account, err := service.ExpenseAccountCreate(nCtx, payload)
+					account, err := service.ExpenseAccountCreate(nCtx, createAccountPayload)
 					assert.Nil(t, err)
 
 					t.Run("test recreate same account", func(t *testing.T) {
-						_, err := service.ExpenseAccountCreate(nCtx, payload)
+						_, err := service.ExpenseAccountCreate(nCtx, createAccountPayload)
 						assert.NotNil(t, err)
 					})
 
@@ -144,25 +144,45 @@ func TestFinanceService(t *testing.T) {
 					})
 
 					t.Run("test edit account", func(t *testing.T) {
-						db.Transaction(func(tx *gorm.DB) error {
-							nCtx := context.WithValue(ctx, "identity", &authorization.JwtIdentity{
-								UserID: uint(adminTeam.ID),
-								From:   db_models.AdminTeamType,
+						editPayload := &warehouse_iface.ExpenseAccountEditReq{
+							AccountId:   account.Id,
+							DomainId:    uint64(adminTeam.ID),
+							WarehouseId: uint64(warehouseTeam.ID),
+							NumberId:    "305055648774541",
+							Name:        "Sulistyowardoyo Siswoyo",
+						}
+
+						t.Run("test edit number id and name", func(t *testing.T) {
+							db.Transaction(func(tx *gorm.DB) error {
+								service := warehouse_service.NewWarehouseFinanceService(tx, auth)
+
+								nCtx := context.WithValue(ctx, "identity", &authorization.JwtIdentity{
+									UserID: uint(adminTeam.ID),
+									From:   db_models.AdminTeamType,
+								})
+								result, err := service.ExpenseAccountEdit(nCtx, editPayload)
+								assert.Nil(t, err)
+
+								assert.Equal(t, editPayload.NumberId, result.NumberId)
+								assert.Equal(t, editPayload.Name, result.Name)
+								return errors.New("dummy error")
 							})
-							payload := &warehouse_iface.ExpenseAccountEditReq{
-								AccountId:   account.Id,
-								DomainId:    uint64(adminTeam.ID),
-								WarehouseId: uint64(warehouseTeam.ID),
-								NumberId:    "305055648774541",
-								Name:        "Sulistyowardoyo Siswoyo",
-							}
-							result, err := service.ExpenseAccountEdit(nCtx, payload)
+						})
+
+						t.Run("test edit to ops account", func(t *testing.T) {
+							createAccountPayload.NumberId = "789456132456"
+							createAccountPayload.IsOpsAccount = false
+
+							toOpsAccount, err := service.ExpenseAccountCreate(nCtx, createAccountPayload)
 							assert.Nil(t, err)
 
-							assert.Equal(t, payload.NumberId, result.NumberId)
-							assert.Equal(t, payload.Name, result.Name)
+							t.Run("test edit to ops account", func(t *testing.T) {
+								editPayload.NumberId = toOpsAccount.NumberId
+								editPayload.IsOpsAccount = true
 
-							return errors.New("test error")
+								_, err := service.ExpenseAccountEdit(nCtx, editPayload)
+								assert.NotNil(t, err)
+							})
 						})
 					})
 				})
@@ -176,7 +196,7 @@ func TestFinanceService(t *testing.T) {
 							UserID: uint(warehouseUser.ID),
 							From:   db_models.WarehouseTeamType,
 						})
-						_, err := service.ExpenseAccountCreate(nCtx, payload)
+						_, err := service.ExpenseAccountCreate(nCtx, createAccountPayload)
 						assert.NotNil(t, err)
 
 						return errors.New("test error")

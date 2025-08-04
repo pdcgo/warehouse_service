@@ -103,7 +103,7 @@ func (w *warehouseFinImpl) ExpenseAccountEdit(ctx context.Context, payload *ware
 			return err
 		}
 
-		err = accountService.Update(uint(payload.AccountTypeId), name, numberId)
+		err = accountService.Update(uint(payload.AccountTypeId), payload.IsOpsAccount, name, numberId)
 		if err != nil {
 			return err
 		}
