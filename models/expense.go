@@ -91,11 +91,11 @@ func (w *WareExpenseHistory) GetEntityID() string {
 type WareBalanceAccountHistory struct {
 	ID          uint `json:"id" gorm:"primarykey"`
 	WarehouseID uint `json:"warehouse_id"`
-	AccountID   uint `json:"account_id" gorm:"index:account_at,unique"`
+	AccountID   uint `json:"account_id" gorm:"index:ware_account_at,unique"`
 	CreatedByID uint `json:"created_by_id"`
 
 	Amount    float64   `json:"amount"`
-	At        time.Time `json:"at" gorm:"index:account_at,unique"` // per day
+	At        time.Time `json:"at" gorm:"index:ware_account_at,unique"` // per day
 	CreatedAt time.Time `json:"created_at"`
 
 	Account *WareExpenseAccount `json:"account,omitempty" gorm:"foreignkey:AccountID;"`
