@@ -24,14 +24,15 @@ type wareBalanceAccountHistImpl struct {
 	tx    *gorm.DB
 	agent identity_iface.Agent
 
-	accountID uint
-
 	account *models.WareExpenseAccountWarehouse
 	data    *models.WareBalanceAccountHistory
 }
 
 func (w *wareBalanceAccountHistImpl) Create(accountID uint, amount float64, at *time.Time) error {
 	var err error
+	w.account = &models.WareExpenseAccountWarehouse{}
+	w.data = &models.WareBalanceAccountHistory{}
+
 	accountQuery := warehouse_query.NewWarehouseExpenseAccountQuery(w.tx, false)
 	err = accountQuery.
 		FromAccount(accountID).
@@ -55,7 +56,7 @@ func (w *wareBalanceAccountHistImpl) Create(accountID uint, amount float64, at *
 	if w.data.ID == 0 { // create if doesn't exist
 		w.data = &models.WareBalanceAccountHistory{
 			WarehouseID: w.account.WarehouseID,
-			AccountID:   w.accountID,
+			AccountID:   w.account.AccountID,
 			CreatedByID: w.agent.GetUserID(),
 			Amount:      amount,
 			At:          *at,
