@@ -63,11 +63,13 @@ type CreateExpensePayload struct {
 }
 
 func (e *expenseHistImpl) Create(from db_models.TeamType, payload *CreateExpensePayload) error {
-	if !models.CanCreateExpense[from][payload.ExpenseType] {
-		return errors.New("not allowed create expense")
-	}
 	if e.account == nil {
 		return errors.New("account not initialized")
+	}
+	if from != db_models.AdminTeamType {
+		if !models.CanCreateExpense[from][payload.ExpenseType] {
+			return errors.New("not allowed create expense")
+		}
 	}
 
 	expense := models.WareExpenseHistory{

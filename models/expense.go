@@ -68,7 +68,7 @@ type WareExpenseAccountWarehouse struct {
 	WarehouseID  uint `json:"warehouse_id"`
 	IsOpsAccount bool `json:"is_ops_account"`
 
-	Account *WareExpenseAccount `gorm:"foreignKey:AccountID"`
+	Account *WareExpenseAccount `json:"account,omitempty" gorm:"foreignKey:AccountID"`
 }
 
 type WareExpenseHistory struct {
