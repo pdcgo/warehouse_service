@@ -10,40 +10,115 @@ import (
 type ExpenseType string
 
 const (
-	ExpenseTypeBank        ExpenseType = "bank"
-	ExpenseTypeBasicSalary ExpenseType = "basic_salary"
-	ExpenseTypeBonusSalary ExpenseType = "bonus_salary"
-	ExpenseTypeKitchen     ExpenseType = "kitchen"
-	ExpenseTypeOther       ExpenseType = "other"
+	ExpenseTypeEquity      ExpenseType = "equity"       // Modal
+	ExpenseTypeBasicSalary ExpenseType = "basic_salary" // Gaji Pokok
+	ExpenseTypeServer      ExpenseType = "server"       // Server
+
+	ExpenseTypePettyCash   ExpenseType = "petty_cash"  // Kas Kecil
+	ExpenseTypeTransport   ExpenseType = "transport"   // Transport
+	ExpenseTypeReceivable  ExpenseType = "receivable"  // Piutang
+	ExpenseTypeInternet    ExpenseType = "internet"    // Internet
+	ExpenseTypePacking     ExpenseType = "packing"     // Packing
+	ExpenseTypeShipping    ExpenseType = "shipping"    // Ongkir
+	ExpenseTypeElectricity ExpenseType = "electricity" // Listrik
+	ExpenseTypeKitchen     ExpenseType = "kitchen"     // Dapur
+	ExpenseTypeEquipment   ExpenseType = "equipment"   // Perlengkapan
+	ExpenseTypeTools       ExpenseType = "tools"       // Peralatan
+	ExpenseTypeOther       ExpenseType = "other"       // Lain-Lain
+
+	// additional types
+	// ExpenseTypeBank        ExpenseType = "bank"         // Bank
+	// ExpenseTypePayable     ExpenseType = "payable"      // Hutang
+	// ExpenseTypeBonusSalary ExpenseType = "bonus_salary" // Bonus
 )
 
 var CanCreateExpense = map[db_models.TeamType]map[ExpenseType]bool{
-	db_models.WarehouseTeamType: map[ExpenseType]bool{
-		ExpenseTypeKitchen: true,
-		ExpenseTypeOther:   true,
-	},
 	db_models.AdminTeamType: map[ExpenseType]bool{
-		ExpenseTypeBank:        true,
+		ExpenseTypeEquity:      true,
 		ExpenseTypeBasicSalary: true,
-		ExpenseTypeBonusSalary: true,
+		ExpenseTypePettyCash:   true,
+		ExpenseTypeServer:      true,
+		ExpenseTypeTransport:   true,
+		ExpenseTypeReceivable:  true,
+		ExpenseTypeInternet:    true,
+		ExpenseTypePacking:     true,
+		ExpenseTypeShipping:    true,
+		ExpenseTypeElectricity: true,
 		ExpenseTypeKitchen:     true,
+		ExpenseTypeEquipment:   true,
+		ExpenseTypeTools:       true,
+		ExpenseTypeOther:       true,
+		// ExpenseTypeBank:        true,
+		// ExpenseTypePayable:     true,
+		// ExpenseTypeBonusSalary: true,
+	},
+	db_models.WarehouseTeamType: map[ExpenseType]bool{
+		ExpenseTypePettyCash:   true,
+		ExpenseTypeTransport:   true,
+		ExpenseTypeReceivable:  true,
+		ExpenseTypeInternet:    true,
+		ExpenseTypePacking:     true,
+		ExpenseTypeShipping:    true,
+		ExpenseTypeElectricity: true,
+		ExpenseTypeKitchen:     true,
+		ExpenseTypeEquipment:   true,
+		ExpenseTypeTools:       true,
 		ExpenseTypeOther:       true,
 	},
 }
 
 func (ExpenseType) EnumList() []string {
 	return []string{
-		"bank",
+		"equity",
 		"basic_salary",
-		"bonus_salary",
+		"server",
+
+		"petty_cash",
+		"transport",
+		"internet",
+		"packing",
+		"receivable",
+		"shipping",
+		"electricity",
 		"kitchen",
+		"equipment",
+		"tools",
 		"other",
+
+		// // additional types
+		// "bank",
+		// "payable",
+		// "bonus_salary",
 	}
 }
 
 func (t ExpenseType) NeedAdminPermission() bool {
-	values := []ExpenseType{ExpenseTypeBank, ExpenseTypeBasicSalary, ExpenseTypeBonusSalary}
+	values := []ExpenseType{
+		ExpenseTypeEquity,
+		ExpenseTypeBasicSalary,
+		ExpenseTypeServer,
+	}
 	return slices.Contains(values, t)
+}
+
+type ListExpenseType []ExpenseType
+
+type GroupExpenseType map[db_models.TeamType]ListExpenseType
+
+var GroupExpense GroupExpenseType = GroupExpenseType{
+	db_models.WarehouseTeamType: ListExpenseType{
+		ExpenseTypePettyCash,
+		ExpenseTypeTransport,
+		ExpenseTypeReceivable,
+		ExpenseTypeInternet,
+		ExpenseTypePacking,
+		ExpenseTypeShipping,
+		ExpenseTypeElectricity,
+		ExpenseTypeKitchen,
+		ExpenseTypeEquipment,
+		ExpenseTypeTools,
+		ExpenseTypeOther,
+	},
 }
 
 type WareExpenseAccount struct {
