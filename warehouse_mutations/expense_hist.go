@@ -7,6 +7,7 @@ import (
 	"github.com/pdcgo/shared/db_models"
 	"github.com/pdcgo/shared/interfaces/identity_iface"
 	"github.com/pdcgo/warehouse_service/models"
+	"github.com/pdcgo/warehouse_service/warehouse_query"
 	"gorm.io/gorm"
 )
 
@@ -34,13 +35,13 @@ type expenseHistImpl struct {
 
 func (e *expenseHistImpl) GetAccount(accountID, warehouseID uint) (*models.WareExpenseAccountWarehouse, error) {
 
-	sqlQuery := e.tx.Model(&models.WareExpenseAccountWarehouse{})
-	if accountID != 0 {
-		sqlQuery = sqlQuery.Where("ware_expense_account_warehouses.account_id = ?", accountID)
-	}
-	if warehouseID != 0 {
-		sqlQuery = sqlQuery.Where("ware_expense_account_warehouses.warehouse_id = ?", warehouseID)
-	}
+	wareExpenseAccountQuery := warehouse_query.NewWarehouseExpenseAccountQuery(e.tx, false)
+
+	sqlQuery := wareExpenseAccountQuery.
+		FromAccount(accountID).
+		FromWarehouse(warehouseID).
+		GetQuery()
+
 	err := sqlQuery.
 		Preload("Account").
 		Find(&e.account).Error
@@ -82,7 +83,7 @@ func (e *expenseHistImpl) Create(from db_models.TeamType, payload *CreateExpense
 		At:          payload.At,
 		CreatedAt:   time.Now(),
 	}
-	err := e.tx.Create(expense).Error
+	err := e.tx.Create(&expense).Error
 	if err != nil {
 		return err
 	}
@@ -132,9 +133,9 @@ func (e *expenseHistImpl) Update(from db_models.TeamType, payload *UpdateWareExp
 				err := errors.New("need admin permission for update")
 				return err
 			}
-
-			e.data.ExpenseType = payload.ExpenseType
 		}
+
+		e.data.ExpenseType = payload.ExpenseType
 	}
 
 	e.data.AccountID = payload.AccountID

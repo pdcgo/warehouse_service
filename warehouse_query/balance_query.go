@@ -44,34 +44,30 @@ func (w *warehouseBalanceHistQueryImpl) GetQuery() *gorm.DB {
 }
 
 func (w *warehouseBalanceHistQueryImpl) WithHistID(histID uint) WarehouseBalanceHistQuery {
-	if histID == 0 {
-		return w
+	if histID != 0 {
+		w.tx = w.tx.Where("ware_balance_account_histories.id = ?", histID)
 	}
-	w.tx = w.tx.Where("ware_balance_account_histories.id = ?", histID)
 	return w
 }
 
 func (w *warehouseBalanceHistQueryImpl) FromWarehouse(warehouseID uint) WarehouseBalanceHistQuery {
-	if warehouseID == 0 {
-		return w
+	if warehouseID != 0 {
+		w.tx = w.tx.Where("ware_balance_account_histories.warehouse_id = ?", warehouseID)
 	}
-	w.tx = w.tx.Where("ware_balance_account_histories.warehouse_id = ?", warehouseID)
 	return w
 }
 
 func (w *warehouseBalanceHistQueryImpl) FromAccount(accountID uint) WarehouseBalanceHistQuery {
-	if accountID == 0 {
-		return w
+	if accountID != 0 {
+		w.tx = w.tx.Where("ware_balance_account_histories.account_id = ?", accountID)
 	}
-	w.tx = w.tx.Where("ware_balance_account_histories.account_id = ?", accountID)
 	return w
 }
 
 func (w *warehouseBalanceHistQueryImpl) CreatedBy(userID uint) WarehouseBalanceHistQuery {
-	if userID == 0 {
-		return w
+	if userID != 0 {
+		w.tx = w.tx.Where("ware_balance_account_histories.created_by_id = ?", userID)
 	}
-	w.tx = w.tx.Where("ware_balance_account_histories.created_by_id = ?", userID)
 	return w
 }
 

@@ -22,6 +22,12 @@ func NewWarehouseExpenseQuery(tx *gorm.DB, lock bool) WarehouseExpenseQuery {
 	}
 }
 
+func WarehouseExpenseFromQuery(tx *gorm.DB) WarehouseExpenseQuery {
+	return &warehouseExpenseQueryImpl{
+		tx: tx,
+	}
+}
+
 type WarehouseExpenseQuery interface {
 	WithQuery(tx *gorm.DB) WarehouseExpenseQuery
 	WithHistID(histID uint) WarehouseExpenseQuery
@@ -66,55 +72,43 @@ func (w *warehouseExpenseQueryImpl) GetQuery() *gorm.DB {
 }
 
 func (w *warehouseExpenseQueryImpl) WithHistID(histID uint) WarehouseExpenseQuery {
-	if histID == 0 {
-		return w
+	if histID != 0 {
+		w.tx = w.tx.Where("ware_expense_histories.id = ?", histID)
 	}
-
-	w.tx = w.tx.Where("ware_expense_histories.id = ?", histID)
 	return w
 }
 
 func (w *warehouseExpenseQueryImpl) FromWarehouse(warehouseID uint) WarehouseExpenseQuery {
-	if warehouseID == 0 {
-		return w
+	if warehouseID != 0 {
+		w.tx = w.tx.Where("ware_expense_histories.warehouse_id = ?", warehouseID)
 	}
-
-	w.tx = w.tx.Where("ware_expense_histories.warehouse_id = ?", warehouseID)
 	return w
 }
 
 func (w *warehouseExpenseQueryImpl) FromAccount(accountID uint) WarehouseExpenseQuery {
-	if accountID == 0 {
-		return w
+	if accountID != 0 {
+		w.tx = w.tx.Where("ware_expense_histories.account_id = ?", accountID)
 	}
-
-	w.tx = w.tx.Where("ware_expense_histories.account_id = ?", accountID)
 	return w
 }
 
 func (w *warehouseExpenseQueryImpl) CreatedBy(userID uint) WarehouseExpenseQuery {
-	if userID == 0 {
-		return w
+	if userID != 0 {
+		w.tx = w.tx.Where("ware_expense_histories.created_by_id = ?", userID)
 	}
-
-	w.tx = w.tx.Where("ware_expense_histories.created_by_id = ?", userID)
 	return w
 }
 
 func (w *warehouseExpenseQueryImpl) WithType(expenseType models.ExpenseType) WarehouseExpenseQuery {
-	if expenseType == "" {
-		return w
+	if expenseType != "" {
+		w.tx = w.tx.Where("ware_expense_histories.expense_type = ?", expenseType)
 	}
-
-	w.tx = w.tx.Where("ware_expense_histories.expense_type = ?", expenseType)
 	return w
 }
 func (w *warehouseExpenseQueryImpl) WithTypes(expenseTypes []models.ExpenseType) WarehouseExpenseQuery {
-	if len(expenseTypes) == 0 {
-		return w
+	if len(expenseTypes) != 0 {
+		w.tx = w.tx.Where("ware_expense_histories.expense_type IN (?)", expenseTypes)
 	}
-
-	w.tx = w.tx.Where("ware_expense_histories.expense_type IN (?)", expenseTypes)
 	return w
 }
 

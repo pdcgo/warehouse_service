@@ -7,6 +7,7 @@ import (
 
 	"github.com/pdcgo/shared/interfaces/identity_iface"
 	"github.com/pdcgo/warehouse_service/models"
+	"github.com/pdcgo/warehouse_service/warehouse_query"
 	"gorm.io/gorm"
 )
 
@@ -71,11 +72,15 @@ func (w *createWarehouseExpenseAccountImpl) Create(warehouseID, accountTypeID ui
 }
 
 func (w *createWarehouseExpenseAccountImpl) checkNumberID(warehouseID uint, numberID string) error {
+
+	warehouseQuery := warehouse_query.NewWarehouseExpenseAccountQuery(w.tx, false)
+
 	data := models.WareExpenseAccountWarehouse{}
-	err := w.tx.Model(&models.WareExpenseAccountWarehouse{}).
-		Joins("JOIN ware_expense_accounts ON ware_expense_accounts.id = ware_expense_account_warehouses.account_id").
-		Where("ware_expense_account_warehouses.warehouse_id = ?", warehouseID).
-		Where("ware_expense_accounts.number_id = ?", numberID).
+	err := warehouseQuery.
+		FromWarehouse(warehouseID).
+		JoinWareExpenseAccount("JOIN").
+		SearchNumberID(numberID).
+		GetQuery().
 		Find(&data).Error
 	if err != nil {
 		return err
@@ -89,11 +94,14 @@ func (w *createWarehouseExpenseAccountImpl) checkNumberID(warehouseID uint, numb
 }
 
 func (w *createWarehouseExpenseAccountImpl) checkOpsAccount(warehouseID uint) error {
+
+	warehouseQuery := warehouse_query.NewWarehouseExpenseAccountQuery(w.tx, false)
+
 	data := models.WareExpenseAccountWarehouse{}
-	err := w.tx.Model(&models.WareExpenseAccountWarehouse{}).
-		Joins("JOIN ware_expense_accounts ON ware_expense_accounts.id = ware_expense_account_warehouses.account_id").
-		Where("ware_expense_account_warehouses.warehouse_id = ?", warehouseID).
-		Where("ware_expense_account_warehouses.is_ops_account = ?", true).
+	err := warehouseQuery.
+		FromWarehouse(warehouseID).
+		IsOpsAccount(true).
+		GetQuery().
 		Find(&data).Error
 	if err != nil {
 		return err
