@@ -132,15 +132,40 @@ func (w *warehouseExpenseQueryImpl) ExpenseAt(timeMin, timeMax time.Time) Wareho
 	return w
 }
 
+type WareExpenseTimeType string
+
+const (
+	WareExpenseTimeTypeCreatedAt WareExpenseTimeType = "created_at"
+	WareExpenseTimeTypeAt        WareExpenseTimeType = "at"
+)
+
+func (WareExpenseTimeType) EnumList() []string {
+	return []string{
+		"created_at",
+		"at",
+	}
+}
+
+func (w *warehouseExpenseQueryImpl) FilterTime(timeType WareExpenseTimeType, timeMin, timeMax time.Time) WarehouseExpenseQuery {
+	switch timeType {
+	case WareExpenseTimeTypeCreatedAt:
+		return w.CreatedTime(timeMin, timeMax)
+	case WareExpenseTimeTypeAt:
+		return w.ExpenseAt(timeMin, timeMax)
+	default:
+		return w
+	}
+}
+
 func (w *warehouseExpenseQueryImpl) FlowType(flowType FlowType) WarehouseExpenseQuery {
 	if flowType == "" {
 		return w
 	}
 	switch flowType {
 	case FlowTypeIncome:
-		w.tx = w.tx.Where("ware_expense_histories >= 0")
+		w.tx = w.tx.Where("ware_expense_histories.amount >= 0")
 	case FlowTypeOutcome:
-		w.tx = w.tx.Where("ware_expense_histories < 0")
+		w.tx = w.tx.Where("ware_expense_histories.amount < 0")
 	}
 
 	return w
