@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -27,6 +28,11 @@ func NewMockAuth(hasRole bool) authorization_iface.Authorization {
 
 type mockAuth struct {
 	hasRole bool
+}
+
+// AuthIdentityFromHeader implements authorization_iface.Authorization.
+func (m *mockAuth) AuthIdentityFromHeader(header http.Header) authorization_iface.AuthIdentity {
+	panic("unimplemented")
 }
 
 // ApiQueryCheckPermission implements authorization_iface.Authorization.
