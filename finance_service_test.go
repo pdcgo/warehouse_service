@@ -30,6 +30,11 @@ type mockAuth struct {
 	hasRole bool
 }
 
+// AuthIdentityFromToken implements authorization_iface.Authorization.
+func (m *mockAuth) AuthIdentityFromToken(token string) authorization_iface.AuthIdentity {
+	panic("unimplemented")
+}
+
 // AuthIdentityFromHeader implements authorization_iface.Authorization.
 func (m *mockAuth) AuthIdentityFromHeader(header http.Header) authorization_iface.AuthIdentity {
 	panic("unimplemented")
