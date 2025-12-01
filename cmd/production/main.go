@@ -12,6 +12,7 @@ import (
 	"github.com/pdcgo/shared/custom_connect"
 	"github.com/pdcgo/shared/db_connect"
 	"github.com/pdcgo/shared/interfaces/authorization_iface"
+	"github.com/pdcgo/shared/pkg/cloud_logging"
 	"github.com/pdcgo/shared/pkg/ware_cache"
 	"github.com/pdcgo/warehouse_service/v2"
 	"golang.org/x/net/http2"
@@ -80,7 +81,7 @@ func NewApp(
 }
 
 func main() {
-	// cloud_logging.SetCloudLoggingDefault()
+	cloud_logging.SetCloudLoggingDefault()
 	app, err := InitializeApp()
 	if err != nil {
 		panic(err)

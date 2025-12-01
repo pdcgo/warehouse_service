@@ -4,8 +4,8 @@ go 1.24.2
 
 require (
 	connectrpc.com/connect v1.19.0
-	github.com/pdcgo/schema v1.0.68
-	github.com/pdcgo/shared v1.0.100
+	github.com/pdcgo/schema v1.0.69
+	github.com/pdcgo/shared v1.0.101
 	github.com/stretchr/testify v1.11.1
 	google.golang.org/protobuf v1.36.9
 	gorm.io/datatypes v1.2.5
