@@ -1,0 +1,326 @@
+package outbound
+
+import (
+	"context"
+	"errors"
+
+	"connectrpc.com/connect"
+	"github.com/pdcgo/schema/services/access_iface/v1"
+	"github.com/pdcgo/schema/services/common/v1"
+	"github.com/pdcgo/schema/services/warehouse_iface/v1"
+	"github.com/pdcgo/shared/authorization"
+	"github.com/pdcgo/shared/custom_connect"
+	"github.com/pdcgo/shared/db_connect"
+	"github.com/pdcgo/shared/db_models"
+	"github.com/pdcgo/shared/interfaces/authorization_iface"
+	"google.golang.org/protobuf/types/known/timestamppb"
+	"gorm.io/gorm"
+)
+
+type TeamInvTransaction struct{}
+
+// GetEntityID implements authorization.Entity.
+func (t *TeamInvTransaction) GetEntityID() string {
+	return "team_inv_transaction"
+}
+
+// OutboundList implements warehouse_ifaceconnect.OutboundServiceHandler.
+func (o *outboundImpl) OutboundList(
+	ctx context.Context,
+	req *connect.Request[warehouse_iface.OutboundListRequest],
+) (*connect.Response[warehouse_iface.OutboundListResponse], error) {
+	var err error
+
+	source, err := custom_connect.GetRequestSource(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	identity := o.
+		auth.
+		AuthIdentityFromHeader(req.Header())
+
+	err = identity.Err()
+	if err != nil {
+		return nil, err
+	}
+
+	var domainID uint
+	switch source.RequestFrom {
+	case access_iface.RequestFrom_REQUEST_FROM_ADMIN:
+		domainID = uint(authorization.RootDomain)
+	case access_iface.RequestFrom_REQUEST_FROM_WAREHOUSE:
+		domainID = uint(source.TeamId)
+	default:
+		domainID = uint(source.TeamId)
+	}
+
+	err = identity.
+		HasPermission(authorization_iface.CheckPermissionGroup{
+			&TeamInvTransaction{}: &authorization_iface.CheckPermission{
+				DomainID: domainID,
+				Actions:  []authorization_iface.Action{authorization_iface.Read},
+			},
+		}).
+		Err()
+
+	if err != nil {
+		return nil, err
+	}
+
+	payload := req.Msg
+	paySort := payload.Sort
+	db := o.db.WithContext(ctx).Debug()
+
+	result := warehouse_iface.OutboundListResponse{
+		Data:     []*warehouse_iface.Outbound{},
+		PageInfo: &common.PageInfo{},
+	}
+
+	view := outboundListQuery{
+		db:      db,
+		source:  source,
+		payload: payload,
+	}
+
+	var paginated *gorm.DB
+	paginated, result.PageInfo, err = db_connect.SetPaginationQuery(db, view.outboundQuery, payload.Page)
+	if err != nil {
+		return nil, err
+	}
+
+	var list InvTransactionList
+
+	paginated, err = view.
+		sortQuery(paginated, paySort)
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = paginated.
+		Preload("Items").
+		Find(&list).
+		Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	result.Data = list.toProtos()
+
+	return connect.NewResponse(&result), err
+}
+
+type outboundListQuery struct {
+	db      *gorm.DB
+	source  *access_iface.RequestSource
+	payload *warehouse_iface.OutboundListRequest
+}
+
+func (o *outboundListQuery) orderQuery() (*gorm.DB, error) {
+	db := o.db
+	payload := o.payload
+	filter := payload.Filter
+
+	query := db.
+		Table("orders o")
+
+	if filter.ShopId != 0 {
+		query = query.
+			Where("o.order_mp_id = ?", filter.ShopId)
+	} else {
+		if len(filter.Marketplaces) != 0 {
+			mpstring := make([]string, len(filter.Marketplaces))
+			for i, mp := range filter.Marketplaces {
+				switch mp {
+				case common.MarketplaceType_MARKETPLACE_TYPE_SHOPEE:
+					mpstring[i] = "shopee"
+				case common.MarketplaceType_MARKETPLACE_TYPE_TIKTOK:
+					mpstring[i] = "tiktok"
+				case common.MarketplaceType_MARKETPLACE_TYPE_LAZADA:
+					mpstring[i] = "lazada"
+				case common.MarketplaceType_MARKETPLACE_TYPE_CUSTOM:
+					mpstring[i] = "custom"
+				case common.MarketplaceType_MARKETPLACE_TYPE_MENGANTAR:
+					mpstring[i] = "mengantar"
+				case common.MarketplaceType_MARKETPLACE_TYPE_TOKOPEDIA:
+					mpstring[i] = "tokopedia"
+				default:
+					return nil, errors.New("invalid marketplace type")
+				}
+			}
+
+			query = query.
+				Joins("JOIN marketplaces mp ON mp.id = o.order_mp_id").
+				Where("mp.mp_type IN ?", mpstring)
+		}
+	}
+
+	// nnot implemented
+
+	return query, nil
+
+}
+
+func (o *outboundListQuery) outboundQuery() (*gorm.DB, error) {
+	source := o.source
+	payload := o.payload
+
+	query := o.db.
+		Table("inv_transactions it")
+
+	switch source.RequestFrom {
+	case access_iface.RequestFrom_REQUEST_FROM_WAREHOUSE:
+		query = query.
+			Where("it.warehouse_id = ?", source.TeamId)
+	default:
+		return nil, errors.New("query unsupported")
+	}
+
+	// filter data
+	filter := payload.Filter
+
+	if !filter.IncludeDeleted {
+		query = query.
+			Where("it.deleted != true")
+	}
+
+	// filter teamid
+	if filter.TeamId != 0 {
+		query = query.
+			Where("it.team_id = ?", filter.TeamId)
+	}
+
+	if filter.UserId != 0 {
+		query = query.
+			Where("it.create_by_id = ?", filter.UserId)
+	}
+
+	if filter.Receipt != "" {
+		query = query.
+			Where("lower(it.receipt) like ?", "%"+filter.Receipt+"%")
+	}
+
+	if len(filter.Status) != 0 {
+		query = query.
+			Where("it.status IN ?", filter.Status)
+	}
+
+	if len(filter.ShippingIds) != 0 {
+		query = query.
+			Where("it.shipping_id in ?", filter.ShippingIds)
+	}
+
+	if filter.ShopId != 0 {
+		query = query.
+			Where("it.shop_id = ?", filter.ShopId) // not implemented
+	}
+
+	if len(filter.Status) != 0 {
+		query = query.
+			Where("it.status = ?", filter.Status)
+	}
+
+	if filter.Shipment != warehouse_iface.ShipmentStatus_SHIPMENT_STATUS_UNSPECIFIED {
+		switch filter.Shipment {
+		case warehouse_iface.ShipmentStatus_SHIPMENT_STATUS_SEND:
+			query = query.
+				Where("it.is_shipped = ?", true)
+
+		case warehouse_iface.ShipmentStatus_SHIPMENT_STATUS_UNSEND:
+			query = query.
+				Where("it.is_shipped != ?", true)
+		}
+	}
+
+	if len(filter.Marketplaces) != 0 ||
+		filter.ShopId != 0 {
+		orderQuery, err := o.orderQuery()
+		if err != nil {
+			return nil, err
+		}
+
+		query = query.
+			Where("EXISTS (?)",
+				orderQuery.Select("1"),
+			)
+	}
+
+	// filter time
+	timeFilter := filter.TimeRange
+	if timeFilter != nil {
+		if timeFilter.StartDate.IsValid() {
+			query = query.
+				Where("it.created >= ?", timeFilter.StartDate.AsTime())
+		}
+		if timeFilter.EndDate.IsValid() {
+			query = query.
+				Where("it.created <= ?", timeFilter.EndDate.AsTime())
+		}
+	}
+
+	// filter warehouseid
+
+	return query, nil
+
+}
+
+func (o *outboundListQuery) sortQuery(query *gorm.DB, paySort *warehouse_iface.OutboundSort) (*gorm.DB, error) {
+	var key string
+	switch paySort.Type {
+	case common.SortType_SORT_TYPE_ASC:
+		key = "asc nulls last"
+	case common.SortType_SORT_TYPE_DESC:
+		key = "desc nulls last"
+	default:
+		key = "desc nulls last"
+	}
+
+	switch paySort.Field {
+	case warehouse_iface.OutboundSortField_OUTBOUND_SORT_FIELD_CREATED:
+		query = query.Order("it.created " + key)
+	case warehouse_iface.OutboundSortField_OUTBOUND_SORT_FIELD_MP_CREATED:
+		query = query.
+			Joins("JOIN orders o ON o.invertory_tx_id = it.id").
+			Order("o.order_time " + key)
+	default:
+		query = query.Order("it.id")
+	}
+
+	return query, nil
+
+}
+
+type InvTransactionList []*db_models.InvTransaction
+
+func (list InvTransactionList) toProtos() []*warehouse_iface.Outbound {
+	result := make([]*warehouse_iface.Outbound, len(list))
+	for i, item := range list {
+		items := []*warehouse_iface.OutboundItem{}
+		for _, item := range item.Items {
+			items = append(items, &warehouse_iface.OutboundItem{
+				Id:    uint64(item.ID),
+				SkuId: string(item.SkuID),
+				Count: int64(item.Count),
+				Owned: item.Owned,
+				Total: item.Total,
+			})
+		}
+
+		result[i] = &warehouse_iface.Outbound{
+			Id:          uint64(item.ID),
+			TeamId:      uint64(item.TeamID),
+			WarehouseId: uint64(item.WarehouseID),
+			CreateById:  uint64(item.CreateByID),
+			Status:      string(item.Status),
+			Receipt:     item.Receipt,
+			ReceiptFile: item.ReceiptFile,
+			IsDeleted:   item.Deleted,
+			Items:       items,
+			Created:     timestamppb.New(item.Created),
+		}
+	}
+
+	return result
+}
