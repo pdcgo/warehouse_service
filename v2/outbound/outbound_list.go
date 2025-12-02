@@ -133,13 +133,37 @@ func (o *outboundImpl) OutboundList(
 		return nil, err
 	}
 
+	ordIds := []uint64{}
+	ordermap := map[uint64]*warehouse_iface.Outbound{}
 	for _, ord := range ords {
+		ordIds = append(ordIds, uint64(ord.ID))
+		ordermap[uint64(ord.ID)] = itemMap[uint64(*ord.InvertoryTxID)]
 		itemMap[uint64(*ord.InvertoryTxID)].Extra = &warehouse_iface.Outbound_Order{
 			Order: &warehouse_iface.Order{
-				Id:        uint64(ord.ID),
-				ShopId:    uint64(ord.OrderMpID),
+				Id:     uint64(ord.ID),
+				ShopId: uint64(ord.OrderMpID),
+				// CustomerId: ord.,
 				OrderTime: timestamppb.New(ord.OrderTime),
 			},
+		}
+	}
+
+	custs := []*db_models.CustomerAddress{}
+	err = db.
+		Model(&db_models.CustomerAddress{}).
+		Where("order_id in ?", ordIds).
+		Select([]string{"id", "order_id"}).
+		Find(&custs).
+		Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	for _, cust := range custs {
+		switch data := ordermap[uint64(cust.OrderID)].Extra.(type) {
+		case *warehouse_iface.Outbound_Order:
+			data.Order.CustomerId = uint64(cust.ID)
 		}
 	}
 
