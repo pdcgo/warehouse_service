@@ -285,7 +285,7 @@ func (o *outboundListQuery) sortQuery(query *gorm.DB, paySort *warehouse_iface.O
 			Joins("JOIN orders o ON o.invertory_tx_id = it.id").
 			Order("o.order_time " + key)
 	default:
-		query = query.Order("it.id")
+		query = query.Order("it.id desc")
 	}
 
 	return query, nil
@@ -298,13 +298,13 @@ func (list InvTransactionList) toProtos() []*warehouse_iface.Outbound {
 	result := make([]*warehouse_iface.Outbound, len(list))
 	for i, item := range list {
 		items := []*warehouse_iface.OutboundItem{}
-		for _, item := range item.Items {
+		for _, ditem := range item.Items {
 			items = append(items, &warehouse_iface.OutboundItem{
-				Id:    uint64(item.ID),
-				SkuId: string(item.SkuID),
-				Count: int64(item.Count),
-				Owned: item.Owned,
-				Total: item.Total,
+				Id:    uint64(ditem.ID),
+				SkuId: string(ditem.SkuID),
+				Count: int64(ditem.Count),
+				Owned: ditem.Owned,
+				Total: ditem.Total,
 			})
 		}
 
