@@ -107,7 +107,40 @@ func (o *outboundImpl) OutboundList(
 		return nil, err
 	}
 
+	if len(list) == 0 {
+		return connect.NewResponse(&result), nil
+	}
+
 	result.Data = list.toProtos()
+
+	// preload order
+	tx_ids := make([]uint64, len(result.Data))
+	itemMap := map[uint64]*warehouse_iface.Outbound{}
+	for i, tx := range result.Data {
+		tx_ids[i] = tx.Id
+		itemMap[tx.Id] = tx
+	}
+
+	ords := []*db_models.Order{}
+
+	err = db.
+		Model(&db_models.Order{}).
+		Where("invertory_tx_id in ?", tx_ids).
+		Find(&ords).
+		Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	for _, ord := range ords {
+		itemMap[uint64(*ord.InvertoryTxID)].Extra = &warehouse_iface.Outbound_Order{
+			Order: &warehouse_iface.Order{
+				Id:        uint64(ord.ID),
+				OrderTime: timestamppb.New(ord.OrderTime),
+			},
+		}
+	}
 
 	return connect.NewResponse(&result), err
 }
