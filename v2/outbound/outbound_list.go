@@ -143,6 +143,8 @@ func (o *outboundImpl) OutboundList(
 		}
 	}
 
+	// preload transfer
+
 	return connect.NewResponse(&result), err
 }
 
@@ -187,7 +189,9 @@ func (o *outboundListQuery) orderQuery() (*gorm.DB, error) {
 
 			query = query.
 				Joins("JOIN marketplaces mp ON mp.id = o.order_mp_id").
-				Where("mp.mp_type IN ?", mpstring)
+				Where("mp.mp_type IN ?", mpstring).
+				Where("o.id = it.invertory_tx_id")
+
 		}
 	}
 
@@ -214,6 +218,24 @@ func (o *outboundListQuery) outboundQuery() (*gorm.DB, error) {
 
 	// filter data
 	filter := payload.Filter
+
+	if filter.OutboundType != warehouse_iface.OutboundType_OUTBOUND_TYPE_UNSPECIFIED {
+		switch filter.OutboundType {
+		case warehouse_iface.OutboundType_OUTBOUND_TYPE_TRANSFER_OUT:
+			query = query.
+				Where("it.type = ?", db_models.InvTxTransferOut)
+		case warehouse_iface.OutboundType_OUTBOUND_TYPE_ORDER:
+			query = query.
+				Where("it.type = ?", db_models.InvTxOrder)
+		}
+	} else {
+		query = query.
+			Where("it.type in ?", []db_models.InvTxType{
+				db_models.InvTxAdjout,
+				db_models.InvTxOrder,
+				db_models.InvTxTransferOut,
+			})
+	}
 
 	if !filter.IncludeDeleted {
 		query = query.
