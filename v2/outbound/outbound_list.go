@@ -137,6 +137,7 @@ func (o *outboundImpl) OutboundList(
 		itemMap[uint64(*ord.InvertoryTxID)].Extra = &warehouse_iface.Outbound_Order{
 			Order: &warehouse_iface.Order{
 				Id:        uint64(ord.ID),
+				ShopId:    uint64(ord.OrderMpID),
 				OrderTime: timestamppb.New(ord.OrderTime),
 			},
 		}
