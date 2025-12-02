@@ -252,7 +252,7 @@ func (o *outboundListQuery) outboundQuery() (*gorm.DB, error) {
 	if timeFilter != nil {
 		if timeFilter.StartDate.IsValid() {
 			query = query.
-				Where("it.created >= ?", timeFilter.StartDate.AsTime())
+				Where("it.created > ?", timeFilter.StartDate.AsTime())
 		}
 		if timeFilter.EndDate.IsValid() {
 			query = query.
