@@ -3,6 +3,7 @@ package outbound
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"connectrpc.com/connect"
 	"github.com/pdcgo/schema/services/access_iface/v1"
@@ -277,9 +278,10 @@ func (o *outboundListQuery) outboundQuery() (*gorm.DB, error) {
 			Where("it.create_by_id = ?", filter.UserId)
 	}
 
-	if filter.Receipt != "" {
+	if filter.Q != "" {
+		fq := "%" + strings.ToLower(filter.Q) + "%"
 		query = query.
-			Where("lower(it.receipt) like ?", "%"+filter.Receipt+"%")
+			Where("(lower(it.receipt) like ?) or (lower(it.extern_ord_id) like ?)", fq, fq)
 	}
 
 	if len(filter.Status) != 0 {
