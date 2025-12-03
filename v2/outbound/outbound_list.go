@@ -388,6 +388,11 @@ func (list InvTransactionList) toProtos() []*warehouse_iface.Outbound {
 			})
 		}
 
+		var shippingID uint64
+		if item.ShippingID != nil {
+			shippingID = uint64(*item.ShippingID)
+		}
+
 		result[i] = &warehouse_iface.Outbound{
 			Id:          uint64(item.ID),
 			TeamId:      uint64(item.TeamID),
@@ -396,6 +401,8 @@ func (list InvTransactionList) toProtos() []*warehouse_iface.Outbound {
 			Status:      string(item.Status),
 			Receipt:     item.Receipt,
 			ReceiptFile: item.ReceiptFile,
+			IsShipped:   item.IsShipped,
+			ShippingId:  shippingID,
 			IsDeleted:   item.Deleted,
 			Items:       items,
 			Created:     timestamppb.New(item.Created),
