@@ -71,7 +71,7 @@ func (o *outboundImpl) OutboundList(
 
 	payload := req.Msg
 	paySort := payload.Sort
-	db := o.db.WithContext(ctx).Debug()
+	db := o.db.WithContext(ctx)
 
 	result := warehouse_iface.OutboundListResponse{
 		Data:     []*warehouse_iface.Outbound{},
@@ -403,6 +403,7 @@ func (list InvTransactionList) toProtos() []*warehouse_iface.Outbound {
 			Status:      string(item.Status),
 			Receipt:     item.Receipt,
 			ReceiptFile: item.ReceiptFile,
+			ExternOrdId: item.ExternOrdID,
 			IsShipped:   item.IsShipped,
 			ShippingId:  shippingID,
 			IsDeleted:   item.Deleted,
