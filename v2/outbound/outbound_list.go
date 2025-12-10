@@ -217,6 +217,13 @@ func (o *outboundListQuery) orderQuery() (*gorm.DB, error) {
 				Where("mp.mp_type IN ?", mpstring).
 				Where("o.id = it.invertory_tx_id")
 
+			switch filter.SearchType {
+			case warehouse_iface.OutboundSearchType_OUTBOUND_SEARCH_TYPE_SHOPNAME:
+				q := "%" + strings.ToLower(filter.Q) + "%"
+				query = query.
+					Where("(mp.mp_name ilike ?) or (mp.mp_username ilike ?)", q)
+			}
+
 		}
 	}
 
@@ -279,9 +286,16 @@ func (o *outboundListQuery) outboundQuery() (*gorm.DB, error) {
 	}
 
 	if filter.Q != "" {
-		fq := "%" + strings.ToLower(filter.Q) + "%"
-		query = query.
-			Where("(lower(it.receipt) like ?) or (lower(it.extern_ord_id) like ?)", fq, fq)
+		switch filter.SearchType {
+		case warehouse_iface.OutboundSearchType_OUTBOUND_SEARCH_TYPE_ORDER_RECEIPT,
+			warehouse_iface.OutboundSearchType_OUTBOUND_SEARCH_TYPE_UNSPECIFIED:
+
+			fq := "%" + strings.ToLower(filter.Q) + "%"
+			query = query.
+				Where("(lower(it.receipt) like ?) or (lower(it.extern_ord_id) like ?)", fq, fq)
+
+		}
+
 	}
 
 	if len(filter.Status) != 0 {
