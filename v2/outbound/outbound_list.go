@@ -216,14 +216,15 @@ func (o *outboundListQuery) orderQuery() (*gorm.DB, error) {
 				Joins("JOIN marketplaces mp ON mp.id = o.order_mp_id").
 				Where("mp.mp_type IN ?", mpstring).
 				Where("o.id = it.invertory_tx_id")
+		}
 
+		if filter.Q != "" {
 			switch filter.SearchType {
 			case warehouse_iface.OutboundSearchType_OUTBOUND_SEARCH_TYPE_SHOPNAME:
 				q := "%" + strings.ToLower(filter.Q) + "%"
 				query = query.
 					Where("(mp.mp_name ilike ?) or (mp.mp_username ilike ?)", q)
 			}
-
 		}
 	}
 
