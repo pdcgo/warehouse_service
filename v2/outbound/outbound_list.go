@@ -223,7 +223,7 @@ func (o *outboundListQuery) orderQuery() (*gorm.DB, error) {
 			case warehouse_iface.OutboundSearchType_OUTBOUND_SEARCH_TYPE_SHOPNAME:
 				q := "%" + strings.ToLower(filter.Q) + "%"
 				query = query.
-					Where("(mp.mp_name ilike ?) or (mp.mp_username ilike ?)", q)
+					Where("(mp.mp_name ilike ?) or (mp.mp_username ilike ?)", q, q)
 			}
 		}
 	}
