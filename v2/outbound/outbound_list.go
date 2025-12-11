@@ -332,7 +332,8 @@ func (o *outboundListQuery) outboundQuery() (*gorm.DB, error) {
 	}
 
 	if len(filter.Marketplaces) != 0 ||
-		filter.ShopId != 0 {
+		filter.ShopId != 0 ||
+		(filter.Q != "" && filter.SearchType == warehouse_iface.OutboundSearchType_OUTBOUND_SEARCH_TYPE_SHOPNAME) {
 		orderQuery, err := o.orderQuery()
 		if err != nil {
 			return nil, err
