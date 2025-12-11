@@ -219,6 +219,9 @@ func (o *outboundListQuery) orderQuery() (*gorm.DB, error) {
 		}
 
 		if filter.Q != "" {
+			query = query.
+				Joins("JOIN marketplaces mp ON mp.id = o.order_mp_id")
+
 			switch filter.SearchType {
 			case warehouse_iface.OutboundSearchType_OUTBOUND_SEARCH_TYPE_SHOPNAME:
 				q := "%" + strings.ToLower(filter.Q) + "%"
