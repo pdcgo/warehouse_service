@@ -71,7 +71,7 @@ func (o *outboundImpl) OutboundList(
 
 	payload := req.Msg
 	paySort := payload.Sort
-	db := o.db.WithContext(ctx)
+	db := o.db.WithContext(ctx).Debug()
 
 	result := warehouse_iface.OutboundListResponse{
 		Data:     []*warehouse_iface.Outbound{},
@@ -191,6 +191,9 @@ func (o *outboundListQuery) orderQuery() (*gorm.DB, error) {
 		query = query.
 			Where("o.order_mp_id = ?", filter.ShopId)
 	} else {
+		query = query.
+			Joins("JOIN marketplaces mp ON mp.id = o.order_mp_id")
+
 		if len(filter.Marketplaces) != 0 {
 			mpstring := make([]string, len(filter.Marketplaces))
 			for i, mp := range filter.Marketplaces {
@@ -213,14 +216,11 @@ func (o *outboundListQuery) orderQuery() (*gorm.DB, error) {
 			}
 
 			query = query.
-				Joins("JOIN marketplaces mp ON mp.id = o.order_mp_id").
 				Where("mp.mp_type IN ?", mpstring).
 				Where("o.id = it.invertory_tx_id")
 		}
 
 		if filter.Q != "" {
-			query = query.
-				Joins("JOIN marketplaces mp ON mp.id = o.order_mp_id")
 
 			switch filter.SearchType {
 			case warehouse_iface.OutboundSearchType_OUTBOUND_SEARCH_TYPE_SHOPNAME:
