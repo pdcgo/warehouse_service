@@ -35,6 +35,7 @@ func InitializeApp() (*App, error) {
 		return nil, err
 	}
 	registerHandler := warehouse_service.NewRegister(db, authorization, serveMux, defaultInterceptor)
-	app := NewApp(serveMux, registerHandler)
+	registerReflectFunc := custom_connect.NewRegisterReflect(serveMux)
+	app := NewApp(serveMux, registerHandler, registerReflectFunc)
 	return app, nil
 }
