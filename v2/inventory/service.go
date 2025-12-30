@@ -1,6 +1,10 @@
 package inventory
 
 import (
+	"context"
+
+	"connectrpc.com/connect"
+	"github.com/pdcgo/schema/services/warehouse_iface/v1"
 	"github.com/pdcgo/shared/interfaces/authorization_iface"
 	"gorm.io/gorm"
 )
@@ -15,6 +19,21 @@ func (t *TeamInvTransaction) GetEntityID() string {
 type inventoryServiceImpl struct {
 	db   *gorm.DB
 	auth authorization_iface.Authorization
+}
+
+// BlacklistedSku implements warehouse_ifaceconnect.InventoryServiceHandler.
+func (i *inventoryServiceImpl) BlacklistedSku(context.Context, *connect.Request[warehouse_iface.BlacklistedSkuRequest]) (*connect.Response[warehouse_iface.BlacklistedSkuResponse], error) {
+	panic("unimplemented")
+}
+
+// BlacklistedSkuAdd implements warehouse_ifaceconnect.InventoryServiceHandler.
+func (i *inventoryServiceImpl) BlacklistedSkuAdd(context.Context, *connect.Request[warehouse_iface.BlacklistedSkuAddRequest]) (*connect.Response[warehouse_iface.BlacklistedSkuAddResponse], error) {
+	panic("unimplemented")
+}
+
+// BlacklistedSkuRemove implements warehouse_ifaceconnect.InventoryServiceHandler.
+func (i *inventoryServiceImpl) BlacklistedSkuRemove(context.Context, *connect.Request[warehouse_iface.BlacklistedSkuRemoveRequest]) (*connect.Response[warehouse_iface.BlacklistedSkuRemoveResponse], error) {
+	panic("unimplemented")
 }
 
 func NewInventoryService(

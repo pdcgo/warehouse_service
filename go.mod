@@ -4,9 +4,11 @@ go 1.24.2
 
 require (
 	connectrpc.com/connect v1.19.0
-	github.com/pdcgo/schema v1.0.76
-	github.com/pdcgo/shared v1.0.102
+	github.com/google/wire v0.7.0
+	github.com/pdcgo/schema v1.0.89
+	github.com/pdcgo/shared v1.0.113
 	github.com/stretchr/testify v1.11.1
+	golang.org/x/net v0.44.0
 	google.golang.org/protobuf v1.36.9
 	gorm.io/datatypes v1.2.5
 	gorm.io/gorm v1.25.12
@@ -24,6 +26,7 @@ require (
 	cloud.google.com/go/iam v1.5.2 // indirect
 	cloud.google.com/go/secretmanager v1.15.0 // indirect
 	cloud.google.com/go/trace v1.11.6 // indirect
+	connectrpc.com/grpcreflect v1.3.0 // indirect
 	connectrpc.com/otelconnect v0.8.0 // indirect
 	connectrpc.com/validate v0.6.0 // indirect
 	filippo.io/edwards25519 v1.1.0 // indirect
@@ -61,6 +64,7 @@ require (
 	github.com/googleapis/enterprise-certificate-proxy v0.3.6 // indirect
 	github.com/googleapis/gax-go/v2 v2.15.0 // indirect
 	github.com/gorilla/schema v1.4.1 // indirect
+	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.2 // indirect
 	github.com/iancoleman/strcase v0.2.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20231201235250-de7065d80cb9 // indirect
@@ -101,7 +105,6 @@ require (
 	golang.org/x/crypto v0.42.0 // indirect
 	golang.org/x/exp v0.0.0-20250911091902-df9299821621 // indirect
 	golang.org/x/mod v0.28.0 // indirect
-	golang.org/x/net v0.44.0 // indirect
 	golang.org/x/oauth2 v0.31.0 // indirect
 	golang.org/x/sync v0.17.0 // indirect
 	golang.org/x/sys v0.36.0 // indirect

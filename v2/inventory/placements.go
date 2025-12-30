@@ -5,9 +5,9 @@ import (
 	"errors"
 
 	"connectrpc.com/connect"
-	"github.com/pdcgo/gudang/src/authorization"
 	"github.com/pdcgo/schema/services/access_iface/v1"
 	"github.com/pdcgo/schema/services/warehouse_iface/v1"
+	"github.com/pdcgo/shared/authorization"
 	"github.com/pdcgo/shared/custom_connect"
 	"github.com/pdcgo/shared/db_models"
 	"github.com/pdcgo/shared/interfaces/authorization_iface"
