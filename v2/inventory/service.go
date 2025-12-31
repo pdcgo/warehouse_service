@@ -31,21 +31,6 @@ func (i *inventoryServiceImpl) ProductHistory(context.Context, *connect.Request[
 	panic("unimplemented")
 }
 
-// BlacklistedSku implements warehouse_ifaceconnect.InventoryServiceHandler.
-func (i *inventoryServiceImpl) BlacklistedSku(context.Context, *connect.Request[warehouse_iface.BlacklistedSkuRequest]) (*connect.Response[warehouse_iface.BlacklistedSkuResponse], error) {
-	panic("unimplemented")
-}
-
-// BlacklistedSkuAdd implements warehouse_ifaceconnect.InventoryServiceHandler.
-func (i *inventoryServiceImpl) BlacklistedSkuAdd(context.Context, *connect.Request[warehouse_iface.BlacklistedSkuAddRequest]) (*connect.Response[warehouse_iface.BlacklistedSkuAddResponse], error) {
-	panic("unimplemented")
-}
-
-// BlacklistedSkuRemove implements warehouse_ifaceconnect.InventoryServiceHandler.
-func (i *inventoryServiceImpl) BlacklistedSkuRemove(context.Context, *connect.Request[warehouse_iface.BlacklistedSkuRemoveRequest]) (*connect.Response[warehouse_iface.BlacklistedSkuRemoveResponse], error) {
-	panic("unimplemented")
-}
-
 func NewInventoryService(
 	db *gorm.DB,
 	auth authorization_iface.Authorization,
