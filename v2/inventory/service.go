@@ -21,6 +21,16 @@ type inventoryServiceImpl struct {
 	auth authorization_iface.Authorization
 }
 
+// ProductDetail implements warehouse_ifaceconnect.InventoryServiceHandler.
+func (i *inventoryServiceImpl) ProductDetail(context.Context, *connect.Request[warehouse_iface.ProductDetailRequest]) (*connect.Response[warehouse_iface.ProductDetailResponse], error) {
+	panic("unimplemented")
+}
+
+// ProductHistory implements warehouse_ifaceconnect.InventoryServiceHandler.
+func (i *inventoryServiceImpl) ProductHistory(context.Context, *connect.Request[warehouse_iface.ProductHistoryRequest]) (*connect.Response[warehouse_iface.ProductHistoryResponse], error) {
+	panic("unimplemented")
+}
+
 // BlacklistedSku implements warehouse_ifaceconnect.InventoryServiceHandler.
 func (i *inventoryServiceImpl) BlacklistedSku(context.Context, *connect.Request[warehouse_iface.BlacklistedSkuRequest]) (*connect.Response[warehouse_iface.BlacklistedSkuResponse], error) {
 	panic("unimplemented")

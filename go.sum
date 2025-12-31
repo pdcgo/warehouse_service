@@ -489,6 +489,8 @@ github.com/modern-go/reflect2 v1.0.2/go.mod h1:yWuevngMOJpCy52FWWMvUC8ws7m/LJsjY
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLANZcx1PVRCS0qkT7pwLkGfwJo4zjcN/Tysno=
 github.com/pdcgo/schema v1.0.89 h1:x+iNaEixM3gTwsp19ZwqyRpnG/2FpGZ9dKuXSz7/YJ4=
 github.com/pdcgo/schema v1.0.89/go.mod h1:7GltuV5pHouP9PkyrczpPuqo64Silxu4D2zB6gdg0pQ=
+github.com/pdcgo/schema v1.0.90 h1:Ao4FVXUvOI5i55iRMSol0TFctGCe0d3yCBGDwC8I+2s=
+github.com/pdcgo/schema v1.0.90/go.mod h1:7GltuV5pHouP9PkyrczpPuqo64Silxu4D2zB6gdg0pQ=
 github.com/pdcgo/shared v1.0.113 h1:slLDnSghvqfYZv+wcun4KeZqR68ZUgs4GttI39pJQjA=
 github.com/pdcgo/shared v1.0.113/go.mod h1:gfbbhL5CjOU3ugpNYxL4McL6FL8lqOZ6PEj7IxvjeiY=
 github.com/pdcgo/v2_gots_sdk v1.3.10 h1:8rQFfldS6SRJE83VStmIWh74iNjVscr1IATLHKg9lo8=

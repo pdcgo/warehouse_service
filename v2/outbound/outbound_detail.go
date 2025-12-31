@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	"connectrpc.com/connect"
 	"github.com/pdcgo/schema/services/access_iface/v1"
@@ -67,7 +66,7 @@ func (o *outboundImpl) OutboundDetail(
 
 	switch pay.SearchType {
 	case warehouse_iface.OutboundDetailSearchType_OUTBOUND_DETAIL_SEARCH_TYPE_RECEIPT_ORDREF:
-		q := "%" + strings.ToLower(pay.Q) + "%"
+		q := pay.Q
 		query = query.
 			Where("extern_ord_id = ? or receipt = ?", q, q)
 	case warehouse_iface.OutboundDetailSearchType_OUTBOUND_DETAIL_SEARCH_TYPE_TXID:
