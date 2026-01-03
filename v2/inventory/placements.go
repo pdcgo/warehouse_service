@@ -11,7 +11,6 @@ import (
 	"github.com/pdcgo/shared/custom_connect"
 	"github.com/pdcgo/shared/db_models"
 	"github.com/pdcgo/shared/interfaces/authorization_iface"
-	"github.com/pdcgo/shared/pkg/debugtool"
 )
 
 // Placements implements warehouse_ifaceconnect.InventoryServiceHandler.
@@ -82,13 +81,17 @@ func (i *inventoryServiceImpl) Placements(ctx context.Context, req *connect.Requ
 
 	result.Data = map[string]*warehouse_iface.PlacementDetail{}
 
+	variantMap := map[uint64][]*warehouse_iface.PlacementVariantDetail{}
+	variantIDs := []uint64{}
 	rackIDs := []uint{}
 	for _, hist := range hists {
 		skuData, err := hist.SkuID.Extract()
 		if err != nil {
 			return nil, err
 		}
-
+		variant := &warehouse_iface.PlacementVariantDetail{}
+		variantMap[uint64(skuData.VariantID)] = append(variantMap[uint64(skuData.VariantID)], variant)
+		variantIDs = append(variantIDs, uint64(skuData.VariantID))
 		result.Data[string(hist.SkuID)] = &warehouse_iface.PlacementDetail{
 			Racks: []*warehouse_iface.RackPlacement{},
 			SkuDetail: &warehouse_iface.SkuDataDetail{
@@ -97,6 +100,7 @@ func (i *inventoryServiceImpl) Placements(ctx context.Context, req *connect.Requ
 				WarehouseId: uint64(skuData.WarehouseID),
 				TeamId:      uint64(skuData.TeamID),
 			},
+			VariantDetail: variant,
 		}
 		rackIDs = append(rackIDs, hist.RackID)
 
@@ -117,8 +121,6 @@ func (i *inventoryServiceImpl) Placements(ctx context.Context, req *connect.Requ
 		return nil, err
 	}
 
-	debugtool.LogJson(racks)
-
 	for _, rack := range racks {
 		rackNames[rack.ID] = rack.Name
 	}
@@ -131,6 +133,29 @@ func (i *inventoryServiceImpl) Placements(ctx context.Context, req *connect.Requ
 			RackName:  rackNames[hist.RackID],
 		})
 		result.Data[string(hist.SkuID)].Racks = racks
+	}
+
+	variants := []*db_models.VariationValue{}
+
+	err = db.
+		Model(&db_models.VariationValue{}).
+		Preload("Product").
+		Where("id in ?", variantIDs).
+		Find(&variants).
+		Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	for _, variant := range variants {
+		for _, vv := range variantMap[uint64(variant.ID)] {
+			vv.Id = uint64(variant.ID)
+			vv.Name = variant.Product.Name
+			vv.Image = variant.Product.Image[0]
+			vv.VariantRefId = string(variant.RefID)
+		}
+
 	}
 
 	return connect.NewResponse(&result), nil

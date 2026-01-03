@@ -83,8 +83,13 @@ func (o *outboundImpl) OutboundDetail(
 	}
 
 	outbound := db_models.InvTransaction{}
+
+	if pay.LoadAll {
+		query = query.
+			Preload("Items")
+	}
+
 	err = query.
-		Preload("Items").
 		First(&outbound).
 		Error
 	if err != nil {
@@ -133,6 +138,10 @@ func (o *outboundImpl) OutboundDetail(
 		result.Outbound.ShippingId = uint64(*outbound.ShippingID)
 	}
 
+	if !pay.LoadAll {
+		return connect.NewResponse(&result), nil
+	}
+
 	// getting extra
 	switch outbound.Type {
 	case db_models.InvTxOrder:
@@ -154,6 +163,7 @@ func (o *outboundImpl) OutboundDetail(
 			DoubleOrder: ord.DoubleOrder,
 			OrderRefId:  ord.OrderRefID,
 			OrderFrom:   string(ord.OrderFrom),
+			OrderTime:   timestamppb.New(ord.OrderTime),
 		}
 
 		if ord.InvertoryTxID != nil {

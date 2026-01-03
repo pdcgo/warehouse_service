@@ -26,11 +26,6 @@ func (i *inventoryServiceImpl) ProductDetail(context.Context, *connect.Request[w
 	panic("unimplemented")
 }
 
-// ProductHistory implements warehouse_ifaceconnect.InventoryServiceHandler.
-func (i *inventoryServiceImpl) ProductHistory(context.Context, *connect.Request[warehouse_iface.ProductHistoryRequest]) (*connect.Response[warehouse_iface.ProductHistoryResponse], error) {
-	panic("unimplemented")
-}
-
 func NewInventoryService(
 	db *gorm.DB,
 	auth authorization_iface.Authorization,
