@@ -13,6 +13,7 @@ import (
 	"github.com/pdcgo/shared/db_models"
 	"github.com/pdcgo/shared/interfaces/authorization_iface"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"gorm.io/gorm"
 )
 
 // OutboundDetail implements warehouse_ifaceconnect.OutboundServiceHandler.
@@ -183,4 +184,115 @@ func (o *outboundImpl) OutboundDetail(
 	}
 
 	return connect.NewResponse(&result), nil
+}
+
+func (o *outboundImpl) outboundDetailItem(db *gorm.DB, txId uint64, loadAll bool) (*warehouse_iface.OutboundDetailResponse, error) {
+	var err error
+	result := warehouse_iface.OutboundDetailResponse{}
+
+	query := db.
+		Model(&db_models.InvTransaction{}).
+		Where("id = ?", txId)
+
+	outbound := db_models.InvTransaction{}
+
+	if loadAll {
+		query = query.
+			Preload("Items")
+	}
+
+	err = query.
+		First(&outbound).
+		Error
+	if err != nil {
+		return nil, err
+	}
+
+	outitems := make([]*warehouse_iface.OutboundItem, len(outbound.Items))
+	for i, item := range outbound.Items {
+		skudata, err := item.SkuID.Extract()
+		if err != nil {
+			return nil, err
+		}
+
+		outitems[i] = &warehouse_iface.OutboundItem{
+			Id:    uint64(item.ID),
+			SkuId: string(item.SkuID),
+			Count: int64(item.Count),
+			Owned: item.Owned,
+			Total: item.Total,
+			Price: item.Price,
+			SkuDetail: &warehouse_iface.SkuDataDetail{
+				ProductId:   uint64(skudata.ProductID),
+				VariantId:   uint64(skudata.VariantID),
+				WarehouseId: uint64(skudata.WarehouseID),
+				TeamId:      uint64(skudata.TeamID),
+			},
+		}
+	}
+
+	result.Outbound = &warehouse_iface.Outbound{
+		Id:          uint64(outbound.ID),
+		TeamId:      uint64(outbound.TeamID),
+		WarehouseId: uint64(outbound.WarehouseID),
+		CreateById:  uint64(outbound.CreateByID),
+		ExternOrdId: outbound.ExternOrdID,
+		Status:      string(outbound.Status),
+		Receipt:     outbound.Receipt,
+		ReceiptFile: outbound.ReceiptFile,
+		IsDeleted:   outbound.Deleted,
+		IsShipped:   outbound.IsShipped,
+		Created:     timestamppb.New(outbound.Created),
+		Items:       outitems,
+	}
+
+	if outbound.ShippingID != nil {
+		result.Outbound.ShippingId = uint64(*outbound.ShippingID)
+	}
+
+	if !loadAll {
+		return &result, nil
+	}
+
+	// getting extra
+	switch outbound.Type {
+	case db_models.InvTxOrder:
+		ord := db_models.Order{}
+		err = db.
+			Model(&db_models.Order{}).
+			Where("invertory_tx_id = ?", outbound.ID).
+			First(&ord).
+			Error
+
+		if err != nil {
+			return nil, err
+		}
+
+		orddetail := warehouse_iface.OrderDetail{
+			Id:          uint64(ord.ID),
+			TeamId:      uint64(ord.TeamID),
+			CreateById:  uint64(ord.CreatedByID),
+			DoubleOrder: ord.DoubleOrder,
+			OrderRefId:  ord.OrderRefID,
+			OrderFrom:   string(ord.OrderFrom),
+			OrderTime:   timestamppb.New(ord.OrderTime),
+		}
+
+		if ord.InvertoryTxID != nil {
+			orddetail.InvertoryTxId = uint64(*ord.InvertoryTxID)
+		}
+
+		if ord.InvertoryReturnTxID != nil {
+			orddetail.InvertoryReturnTxId = uint64(*ord.InvertoryReturnTxID)
+		}
+
+		result.Extra = &warehouse_iface.OutboundDetailResponse_OrderDetail{
+			OrderDetail: &orddetail,
+		}
+
+	default:
+		return nil, fmt.Errorf("outbound type %s not implemented", outbound.Type)
+	}
+
+	return &result, nil
 }

@@ -6,6 +6,7 @@ import (
 	"github.com/pdcgo/schema/services/warehouse_iface/v1/warehouse_ifaceconnect"
 	"github.com/pdcgo/shared/custom_connect"
 	"github.com/pdcgo/shared/interfaces/authorization_iface"
+	"github.com/pdcgo/warehouse_service/v2/inbound"
 	"github.com/pdcgo/warehouse_service/v2/inventory"
 	"github.com/pdcgo/warehouse_service/v2/outbound"
 	"gorm.io/gorm"
@@ -31,6 +32,13 @@ func NewRegister(
 		)
 		mux.Handle(path, handler)
 		grpcReflects = append(grpcReflects, warehouse_ifaceconnect.OutboundServiceName)
+
+		path, handler = warehouse_ifaceconnect.NewInboundServiceHandler(
+			inbound.NewInboundService(db, auth),
+			defaultInterceptor,
+		)
+		mux.Handle(path, handler)
+		grpcReflects = append(grpcReflects, warehouse_ifaceconnect.InboundServiceName)
 
 		path, handler = warehouse_ifaceconnect.NewInventoryServiceHandler(
 			inventory.NewInventoryService(db, auth),

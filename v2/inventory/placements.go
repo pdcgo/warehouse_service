@@ -11,6 +11,7 @@ import (
 	"github.com/pdcgo/shared/custom_connect"
 	"github.com/pdcgo/shared/db_models"
 	"github.com/pdcgo/shared/interfaces/authorization_iface"
+	"gorm.io/gorm"
 )
 
 // Placements implements warehouse_ifaceconnect.InventoryServiceHandler.
@@ -68,18 +69,30 @@ func (i *inventoryServiceImpl) Placements(ctx context.Context, req *connect.Requ
 		return nil, errors.New("warehouse access error")
 	}
 
-	hists := []*db_models.InvertoryHistory{}
-	err = db.
-		Model(&db_models.InvertoryHistory{}).
-		Where("tx_id = ?", pay.TxId).
-		Find(&hists).
-		Error
+	result.Data, err = i.getPlacements(db, pay.TxId)
 
 	if err != nil {
 		return nil, err
 	}
 
-	result.Data = map[string]*warehouse_iface.PlacementDetail{}
+	return connect.NewResponse(&result), nil
+
+}
+
+func (i *inventoryServiceImpl) getPlacements(db *gorm.DB, txId uint64) (map[string]*warehouse_iface.PlacementDetail, error) {
+	var err error
+	result := map[string]*warehouse_iface.PlacementDetail{}
+
+	hists := []*db_models.InvertoryHistory{}
+	err = db.
+		Model(&db_models.InvertoryHistory{}).
+		Where("tx_id = ?", txId).
+		Find(&hists).
+		Error
+
+	if err != nil {
+		return result, err
+	}
 
 	variantMap := map[uint64][]*warehouse_iface.PlacementVariantDetail{}
 	variantIDs := []uint64{}
@@ -87,12 +100,12 @@ func (i *inventoryServiceImpl) Placements(ctx context.Context, req *connect.Requ
 	for _, hist := range hists {
 		skuData, err := hist.SkuID.Extract()
 		if err != nil {
-			return nil, err
+			return result, err
 		}
 		variant := &warehouse_iface.PlacementVariantDetail{}
 		variantMap[uint64(skuData.VariantID)] = append(variantMap[uint64(skuData.VariantID)], variant)
 		variantIDs = append(variantIDs, uint64(skuData.VariantID))
-		result.Data[string(hist.SkuID)] = &warehouse_iface.PlacementDetail{
+		result[string(hist.SkuID)] = &warehouse_iface.PlacementDetail{
 			Racks: []*warehouse_iface.RackPlacement{},
 			SkuDetail: &warehouse_iface.SkuDataDetail{
 				ProductId:   uint64(skuData.ProductID),
@@ -107,7 +120,6 @@ func (i *inventoryServiceImpl) Placements(ctx context.Context, req *connect.Requ
 	}
 
 	// preloading rack
-
 	racks := []*db_models.Rack{}
 	rackNames := map[uint]string{}
 
@@ -126,13 +138,13 @@ func (i *inventoryServiceImpl) Placements(ctx context.Context, req *connect.Requ
 	}
 
 	for _, hist := range hists {
-		racks := result.Data[string(hist.SkuID)].Racks
+		racks := result[string(hist.SkuID)].Racks
 		racks = append(racks, &warehouse_iface.RackPlacement{
 			RackId:    uint64(hist.RackID),
 			ItemCount: int64(hist.Count),
 			RackName:  rackNames[hist.RackID],
 		})
-		result.Data[string(hist.SkuID)].Racks = racks
+		result[string(hist.SkuID)].Racks = racks
 	}
 
 	variants := []*db_models.VariationValue{}
@@ -155,9 +167,7 @@ func (i *inventoryServiceImpl) Placements(ctx context.Context, req *connect.Requ
 			vv.Image = variant.Product.Image[0]
 			vv.VariantRefId = string(variant.RefID)
 		}
-
 	}
 
-	return connect.NewResponse(&result), nil
-
+	return result, nil
 }
