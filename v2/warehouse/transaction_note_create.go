@@ -67,6 +67,11 @@ func (w *warehouseServiceImpl) TransactionNoteCreate(
 	err = db.Transaction(func(tx *gorm.DB) error {
 
 		for _, note := range pay.Notes {
+
+			if note.Type != warehouse_iface.TransactionNoteType_TRANSACTION_NOTE_TYPE_COMMON {
+				continue
+			}
+
 			noteType, err := ProtoToNoteType(note.Type)
 			if err != nil {
 				return err
@@ -100,7 +105,10 @@ func (w *warehouseServiceImpl) TransactionNoteCreate(
 			return err
 		}
 
-		return tx.Model(&db_models.InvNote{}).Create(notes).Error
+		if len(notes) > 0 {
+			return tx.Model(&db_models.InvNote{}).Create(notes).Error
+		}
+		return nil
 	})
 
 	for _, note := range notes {
