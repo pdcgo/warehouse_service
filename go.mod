@@ -5,7 +5,7 @@ go 1.24.2
 require (
 	connectrpc.com/connect v1.19.1
 	github.com/google/wire v0.7.0
-	github.com/pdcgo/schema v1.0.102
+	github.com/pdcgo/schema v1.0.105
 	github.com/pdcgo/shared v1.0.121
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/net v0.47.0
@@ -25,7 +25,6 @@ require (
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	cloud.google.com/go/iam v1.5.3 // indirect
 	cloud.google.com/go/secretmanager v1.16.0 // indirect
-	cloud.google.com/go/storage v1.57.2 // indirect
 	cloud.google.com/go/trace v1.11.7 // indirect
 	connectrpc.com/grpcreflect v1.3.0 // indirect
 	connectrpc.com/otelconnect v0.8.0 // indirect
@@ -95,7 +94,6 @@ require (
 	github.com/tkrajina/typescriptify-golang-structs v0.2.0 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.3.1 // indirect
-	github.com/zeebo/assert v1.3.1 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.63.0 // indirect

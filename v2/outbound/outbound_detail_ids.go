@@ -92,6 +92,11 @@ func (o *outboundImpl) OutboundDetailIDs(
 						Preload("Items")
 				}
 
+				if pay.IncludeCancel == false {
+					qinv = qinv.
+						Where("status != ?", "cancel")
+				}
+
 				err = qinv.
 					Where("id in ?", pay.TxIds).
 					Find(&trans).
