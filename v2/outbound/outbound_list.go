@@ -14,6 +14,7 @@ import (
 	"github.com/pdcgo/shared/db_connect"
 	"github.com/pdcgo/shared/db_models"
 	"github.com/pdcgo/shared/interfaces/authorization_iface"
+	"github.com/pdcgo/shared/pkg/common_helper"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"gorm.io/gorm"
 )
@@ -71,327 +72,403 @@ func (o *outboundImpl) OutboundList(
 
 	payload := req.Msg
 	paySort := payload.Sort
-	db := o.db.WithContext(ctx)
+	db := o.
+		db.
+		WithContext(ctx)
+	// Debug()
 
 	result := warehouse_iface.OutboundListResponse{
 		Data:     []*warehouse_iface.Outbound{},
 		PageInfo: &common.PageInfo{},
 	}
 
-	view := outboundListQuery{
-		db:      db,
-		source:  source,
-		payload: payload,
-	}
+	filter := payload.Filter
 
-	var paginated *gorm.DB
-	paginated, result.PageInfo, err = db_connect.SetPaginationQuery(db, view.outboundQuery, payload.Page)
-	if err != nil {
-		return nil, err
-	}
+	orderQuery := common_helper.NewChainParam(
+		func(next common_helper.NextFuncParam[*gorm.DB]) common_helper.NextFuncParam[*gorm.DB] {
+			return func(query *gorm.DB) (*gorm.DB, error) {
 
-	var list InvTransactionList
+				query = query.
+					Table("orders o")
 
-	paginated, err = view.
-		sortQuery(paginated, paySort)
+				if filter.ShopId != 0 {
+					query = query.
+						Where("o.order_mp_id = ?", filter.ShopId)
+				} else {
+					query = query.
+						Joins("JOIN marketplaces mp ON mp.id = o.order_mp_id").
+						Where("o.invertory_tx_id = it.id")
 
-	if err != nil {
-		return nil, err
-	}
+					if len(filter.Marketplaces) != 0 {
+						mpstring := make([]string, len(filter.Marketplaces))
+						for i, mp := range filter.Marketplaces {
+							switch mp {
+							case common.MarketplaceType_MARKETPLACE_TYPE_SHOPEE:
+								mpstring[i] = "shopee"
+							case common.MarketplaceType_MARKETPLACE_TYPE_TIKTOK:
+								mpstring[i] = "tiktok"
+							case common.MarketplaceType_MARKETPLACE_TYPE_LAZADA:
+								mpstring[i] = "lazada"
+							case common.MarketplaceType_MARKETPLACE_TYPE_CUSTOM:
+								mpstring[i] = "custom"
+							case common.MarketplaceType_MARKETPLACE_TYPE_MENGANTAR:
+								mpstring[i] = "mengantar"
+							case common.MarketplaceType_MARKETPLACE_TYPE_TOKOPEDIA:
+								mpstring[i] = "tokopedia"
+							default:
+								return query, errors.New("invalid marketplace type")
+							}
+						}
 
-	err = paginated.
-		Preload("Items").
-		Find(&list).
-		Error
+						query = query.
+							Where("mp.mp_type IN ?", mpstring)
 
-	if err != nil {
-		return nil, err
-	}
+					}
 
-	if len(list) == 0 {
-		return connect.NewResponse(&result), nil
-	}
+					if filter.Q != "" {
 
-	result.Data = list.toProtos()
+						switch filter.SearchType {
+						case warehouse_iface.OutboundSearchType_OUTBOUND_SEARCH_TYPE_SHOPNAME:
+							q := "%" + strings.ToLower(filter.Q) + "%"
+							query = query.
+								Where("(mp.mp_name ilike ?) or (mp.mp_username ilike ?)", q, q)
+						}
+					}
+				}
 
-	// preload order
-	tx_ids := make([]uint64, len(result.Data))
-	itemMap := map[uint64]*warehouse_iface.Outbound{}
-	for i, tx := range result.Data {
-		tx_ids[i] = tx.Id
-		itemMap[tx.Id] = tx
-	}
+				return next(query)
+			}
+		},
+	)
 
-	ords := []*db_models.Order{}
+	_, err = db_connect.NewQueryChain(
+		db,
+		func(db *gorm.DB, next db_connect.NextFunc) db_connect.NextFunc {
+			return func(query *gorm.DB) (*gorm.DB, error) { // base
+				query = query.
+					Table("inv_transactions it")
 
-	err = db.
-		Model(&db_models.Order{}).
-		Where("invertory_tx_id in ?", tx_ids).
-		Find(&ords).
-		Error
+				switch source.RequestFrom {
+				case access_iface.RequestFrom_REQUEST_FROM_WAREHOUSE:
+					query = query.
+						Where("it.warehouse_id = ?", source.TeamId)
+				default:
+					return nil, errors.New("query unsupported")
+				}
 
-	if err != nil {
-		return nil, err
-	}
+				return next(query)
+			}
+		},
+		func(db *gorm.DB, next db_connect.NextFunc) db_connect.NextFunc {
+			return func(query *gorm.DB) (*gorm.DB, error) { // outbound type
 
-	ordIds := []uint64{}
-	ordermap := map[uint64]*warehouse_iface.Outbound{}
-	for _, ord := range ords {
-		ordIds = append(ordIds, uint64(ord.ID))
-		ordermap[uint64(ord.ID)] = itemMap[uint64(*ord.InvertoryTxID)]
-		itemMap[uint64(*ord.InvertoryTxID)].Extra = &warehouse_iface.Outbound_Order{
-			Order: &warehouse_iface.Order{
-				Id:     uint64(ord.ID),
-				ShopId: uint64(ord.OrderMpID),
-				// CustomerId: ord.,
-				OrderTime: timestamppb.New(ord.OrderTime),
-			},
-		}
-	}
+				if filter.OutboundType != warehouse_iface.OutboundType_OUTBOUND_TYPE_UNSPECIFIED {
+					switch filter.OutboundType {
+					case warehouse_iface.OutboundType_OUTBOUND_TYPE_TRANSFER_OUT:
+						query = query.
+							Where("it.type = ?", db_models.InvTxTransferOut)
+					case warehouse_iface.OutboundType_OUTBOUND_TYPE_ORDER:
+						query = query.
+							Where("it.type = ?", db_models.InvTxOrder)
+					}
+				} else {
+					query = query.
+						Where("it.type in ?", []db_models.InvTxType{
+							db_models.InvTxAdjout,
+							db_models.InvTxOrder,
+							db_models.InvTxTransferOut,
+						})
+				}
 
-	custs := []*db_models.CustomerAddress{}
-	err = db.
-		Model(&db_models.CustomerAddress{}).
-		Where("order_id in ?", ordIds).
-		Select([]string{"id", "order_id"}).
-		Find(&custs).
-		Error
+				return next(query)
+			}
+		},
+		func(db *gorm.DB, next db_connect.NextFunc) db_connect.NextFunc {
+			return func(query *gorm.DB) (*gorm.DB, error) { // filter delete
+				if !filter.IncludeDeleted {
+					query = query.
+						Where("it.deleted != true")
+				}
 
-	if err != nil {
-		return nil, err
-	}
+				return next(query)
+			}
+		},
+		func(db *gorm.DB, next db_connect.NextFunc) db_connect.NextFunc {
+			return func(query *gorm.DB) (*gorm.DB, error) { // team id
+				if filter.TeamId != 0 {
+					query = query.
+						Where("it.team_id = ?", filter.TeamId)
+				}
 
-	for _, cust := range custs {
-		switch data := ordermap[uint64(cust.OrderID)].Extra.(type) {
-		case *warehouse_iface.Outbound_Order:
-			data.Order.CustomerId = uint64(cust.ID)
-		}
-	}
+				return next(query)
+			}
+		},
+		func(db *gorm.DB, next db_connect.NextFunc) db_connect.NextFunc {
+			return func(query *gorm.DB) (*gorm.DB, error) { // user id
+				if filter.UserId != 0 {
+					query = query.
+						Where("it.create_by_id = ?", filter.UserId)
+				}
 
-	// preload transfer
+				return next(query)
+			}
+		},
+
+		func(db *gorm.DB, next db_connect.NextFunc) db_connect.NextFunc {
+			return func(query *gorm.DB) (*gorm.DB, error) { // search query
+
+				switch filter.SearchType {
+				case warehouse_iface.OutboundSearchType_OUTBOUND_SEARCH_TYPE_ORDER_RECEIPT,
+					warehouse_iface.OutboundSearchType_OUTBOUND_SEARCH_TYPE_UNSPECIFIED:
+
+					if filter.Q == "" {
+						return next(query)
+					}
+
+					fq := "%" + strings.ToLower(filter.Q) + "%"
+					query = query.
+						Where("(lower(it.receipt) like ?) or (lower(it.extern_ord_id) like ?)", fq, fq)
+
+				case warehouse_iface.OutboundSearchType_OUTBOUND_SEARCH_TYPE_SKU_REFID:
+					if len(filter.SkuIds) == 0 {
+						return next(query)
+					}
+
+					txitemQuery := db.
+						Table("inv_tx_items iti").
+						Where("iti.sku_id in ?", filter.SkuIds).
+						Where("iti.inv_transaction_id = it.id")
+
+					query = query.
+						Where("EXISTS (?)",
+							txitemQuery.Select("1"),
+						)
+				}
+
+				return next(query)
+			}
+		},
+
+		func(db *gorm.DB, next db_connect.NextFunc) db_connect.NextFunc {
+			return func(query *gorm.DB) (*gorm.DB, error) { // filter status
+
+				if len(filter.Status) != 0 {
+					query = query.
+						Where("it.status IN ?", filter.Status)
+				}
+
+				return next(query)
+			}
+		},
+
+		func(db *gorm.DB, next db_connect.NextFunc) db_connect.NextFunc {
+			return func(query *gorm.DB) (*gorm.DB, error) { // filter shipping
+
+				if len(filter.ShippingIds) != 0 {
+					query = query.
+						Where("it.shipping_id in ?", filter.ShippingIds)
+				}
+
+				return next(query)
+			}
+		},
+
+		func(db *gorm.DB, next db_connect.NextFunc) db_connect.NextFunc {
+			return func(query *gorm.DB) (*gorm.DB, error) { // filter shopid
+				if filter.ShopId != 0 {
+					query = query.
+						Where("it.shop_id = ?", filter.ShopId)
+				}
+
+				return next(query)
+			}
+		},
+
+		func(db *gorm.DB, next db_connect.NextFunc) db_connect.NextFunc {
+			return func(query *gorm.DB) (*gorm.DB, error) { // filter shipment status
+
+				if filter.Shipment != warehouse_iface.ShipmentStatus_SHIPMENT_STATUS_UNSPECIFIED {
+					switch filter.Shipment {
+					case warehouse_iface.ShipmentStatus_SHIPMENT_STATUS_SEND:
+						query = query.
+							Where("it.is_shipped = ?", true)
+
+					case warehouse_iface.ShipmentStatus_SHIPMENT_STATUS_UNSEND:
+						query = query.
+							Where("it.is_shipped != ?", true)
+					}
+				}
+
+				return next(query)
+			}
+		},
+
+		func(db *gorm.DB, next db_connect.NextFunc) db_connect.NextFunc {
+			return func(query *gorm.DB) (*gorm.DB, error) { // filter marketplace, shop, dan query
+				var isOrderPreload bool
+
+				isOrderPreload = len(filter.Marketplaces) != 0 ||
+					filter.ShopId != 0 ||
+					(filter.Q != "" &&
+						filter.SearchType == warehouse_iface.OutboundSearchType_OUTBOUND_SEARCH_TYPE_SHOPNAME)
+
+				if isOrderPreload {
+					orderQuery, err := orderQuery(db)
+					if err != nil {
+						return nil, err
+					}
+
+					query = query.
+						Where("EXISTS (?)",
+							orderQuery.Select("1"),
+						)
+				}
+
+				return next(query)
+			}
+		},
+
+		func(db *gorm.DB, next db_connect.NextFunc) db_connect.NextFunc {
+			return func(query *gorm.DB) (*gorm.DB, error) { // filter time
+				timeFilter := filter.TimeRange
+				if timeFilter != nil {
+					if timeFilter.StartDate.IsValid() {
+						query = query.
+							Where("it.created > ?", timeFilter.StartDate.AsTime())
+					}
+					if timeFilter.EndDate.IsValid() {
+						query = query.
+							Where("it.created <= ?", timeFilter.EndDate.AsTime())
+					}
+				}
+				return next(query)
+			}
+		},
+
+		func(db *gorm.DB, next db_connect.NextFunc) db_connect.NextFunc {
+			return func(query *gorm.DB) (*gorm.DB, error) { // pagination
+				var queryPaginated *gorm.DB
+				queryPaginated, result.PageInfo, err = db_connect.SetPaginationQuery(db, func() (*gorm.DB, error) {
+					return query.Session(&gorm.Session{}), nil
+
+				}, payload.Page)
+
+				if err != nil {
+					return query, err
+				}
+
+				return next(
+					queryPaginated,
+				)
+			}
+		},
+
+		func(db *gorm.DB, next db_connect.NextFunc) db_connect.NextFunc {
+			return func(query *gorm.DB) (*gorm.DB, error) { // sorting
+				var key string
+				switch paySort.Type {
+				case common.SortType_SORT_TYPE_ASC:
+					key = "asc nulls last"
+				case common.SortType_SORT_TYPE_DESC:
+					key = "desc nulls last"
+				default:
+					key = "desc nulls last"
+				}
+
+				switch paySort.Field {
+				case warehouse_iface.OutboundSortField_OUTBOUND_SORT_FIELD_CREATED:
+					query = query.Order("it.created " + key)
+				case warehouse_iface.OutboundSortField_OUTBOUND_SORT_FIELD_MP_CREATED:
+					query = query.
+						Joins("JOIN orders o ON o.invertory_tx_id = it.id").
+						Order("o.order_time " + key)
+				default:
+					query = query.Order("it.id desc")
+				}
+				return next(query)
+			}
+		},
+		NewGetResult(&result),
+	)
 
 	return connect.NewResponse(&result), err
 }
 
-type outboundListQuery struct {
-	db      *gorm.DB
-	source  *access_iface.RequestSource
-	payload *warehouse_iface.OutboundListRequest
-}
+func NewGetResult(result *warehouse_iface.OutboundListResponse) db_connect.NextHandler {
+	return func(db *gorm.DB, next db_connect.NextFunc) db_connect.NextFunc {
+		return func(query *gorm.DB) (*gorm.DB, error) {
+			var err error
 
-func (o *outboundListQuery) orderQuery() (*gorm.DB, error) {
-	db := o.db
-	payload := o.payload
-	filter := payload.Filter
+			var list InvTransactionList
 
-	query := db.
-		Table("orders o")
+			err = query.
+				Preload("Items").
+				Find(&list).
+				Error
 
-	if filter.ShopId != 0 {
-		query = query.
-			Where("o.order_mp_id = ?", filter.ShopId)
-	} else {
-		query = query.
-			Joins("JOIN marketplaces mp ON mp.id = o.order_mp_id").
-			Where("o.invertory_tx_id = it.id")
+			if err != nil {
+				return nil, err
+			}
 
-		if len(filter.Marketplaces) != 0 {
-			mpstring := make([]string, len(filter.Marketplaces))
-			for i, mp := range filter.Marketplaces {
-				switch mp {
-				case common.MarketplaceType_MARKETPLACE_TYPE_SHOPEE:
-					mpstring[i] = "shopee"
-				case common.MarketplaceType_MARKETPLACE_TYPE_TIKTOK:
-					mpstring[i] = "tiktok"
-				case common.MarketplaceType_MARKETPLACE_TYPE_LAZADA:
-					mpstring[i] = "lazada"
-				case common.MarketplaceType_MARKETPLACE_TYPE_CUSTOM:
-					mpstring[i] = "custom"
-				case common.MarketplaceType_MARKETPLACE_TYPE_MENGANTAR:
-					mpstring[i] = "mengantar"
-				case common.MarketplaceType_MARKETPLACE_TYPE_TOKOPEDIA:
-					mpstring[i] = "tokopedia"
-				default:
-					return nil, errors.New("invalid marketplace type")
+			result.Data = list.toProtos()
+
+			// preload order
+			tx_ids := make([]uint64, len(result.Data))
+			itemMap := map[uint64]*warehouse_iface.Outbound{}
+			for i, tx := range result.Data {
+				tx_ids[i] = tx.Id
+				itemMap[tx.Id] = tx
+			}
+
+			ords := []*db_models.Order{}
+
+			err = db.
+				Model(&db_models.Order{}).
+				Where("invertory_tx_id in ?", tx_ids).
+				Find(&ords).
+				Error
+
+			if err != nil {
+				return nil, err
+			}
+
+			ordIds := []uint64{}
+			ordermap := map[uint64]*warehouse_iface.Outbound{}
+			for _, ord := range ords {
+				ordIds = append(ordIds, uint64(ord.ID))
+				ordermap[uint64(ord.ID)] = itemMap[uint64(*ord.InvertoryTxID)]
+				itemMap[uint64(*ord.InvertoryTxID)].Extra = &warehouse_iface.Outbound_Order{
+					Order: &warehouse_iface.Order{
+						Id:     uint64(ord.ID),
+						ShopId: uint64(ord.OrderMpID),
+						// CustomerId: ord.,
+						OrderTime: timestamppb.New(ord.OrderTime),
+					},
 				}
 			}
 
-			query = query.
-				Where("mp.mp_type IN ?", mpstring)
+			custs := []*db_models.CustomerAddress{}
+			err = db.
+				Model(&db_models.CustomerAddress{}).
+				Where("order_id in ?", ordIds).
+				Select([]string{"id", "order_id"}).
+				Find(&custs).
+				Error
 
-		}
-
-		if filter.Q != "" {
-
-			switch filter.SearchType {
-			case warehouse_iface.OutboundSearchType_OUTBOUND_SEARCH_TYPE_SHOPNAME:
-				q := "%" + strings.ToLower(filter.Q) + "%"
-				query = query.
-					Where("(mp.mp_name ilike ?) or (mp.mp_username ilike ?)", q, q)
+			if err != nil {
+				return nil, err
 			}
+
+			for _, cust := range custs {
+				switch data := ordermap[uint64(cust.OrderID)].Extra.(type) {
+				case *warehouse_iface.Outbound_Order:
+					data.Order.CustomerId = uint64(cust.ID)
+				}
+			}
+
+			return nil, nil
 		}
 	}
-
-	// nnot implemented
-
-	return query, nil
-
-}
-
-func (o *outboundListQuery) outboundQuery() (*gorm.DB, error) {
-	source := o.source
-	payload := o.payload
-
-	query := o.db.
-		Table("inv_transactions it")
-
-	switch source.RequestFrom {
-	case access_iface.RequestFrom_REQUEST_FROM_WAREHOUSE:
-		query = query.
-			Where("it.warehouse_id = ?", source.TeamId)
-	default:
-		return nil, errors.New("query unsupported")
-	}
-
-	// filter data
-	filter := payload.Filter
-
-	if filter.OutboundType != warehouse_iface.OutboundType_OUTBOUND_TYPE_UNSPECIFIED {
-		switch filter.OutboundType {
-		case warehouse_iface.OutboundType_OUTBOUND_TYPE_TRANSFER_OUT:
-			query = query.
-				Where("it.type = ?", db_models.InvTxTransferOut)
-		case warehouse_iface.OutboundType_OUTBOUND_TYPE_ORDER:
-			query = query.
-				Where("it.type = ?", db_models.InvTxOrder)
-		}
-	} else {
-		query = query.
-			Where("it.type in ?", []db_models.InvTxType{
-				db_models.InvTxAdjout,
-				db_models.InvTxOrder,
-				db_models.InvTxTransferOut,
-			})
-	}
-
-	if !filter.IncludeDeleted {
-		query = query.
-			Where("it.deleted != true")
-	}
-
-	// filter teamid
-	if filter.TeamId != 0 {
-		query = query.
-			Where("it.team_id = ?", filter.TeamId)
-	}
-
-	if filter.UserId != 0 {
-		query = query.
-			Where("it.create_by_id = ?", filter.UserId)
-	}
-
-	if filter.Q != "" {
-		switch filter.SearchType {
-		case warehouse_iface.OutboundSearchType_OUTBOUND_SEARCH_TYPE_ORDER_RECEIPT,
-			warehouse_iface.OutboundSearchType_OUTBOUND_SEARCH_TYPE_UNSPECIFIED:
-
-			fq := "%" + strings.ToLower(filter.Q) + "%"
-			query = query.
-				Where("(lower(it.receipt) like ?) or (lower(it.extern_ord_id) like ?)", fq, fq)
-
-		}
-
-	}
-
-	if len(filter.Status) != 0 {
-		query = query.
-			Where("it.status IN ?", filter.Status)
-	}
-
-	if len(filter.ShippingIds) != 0 {
-		query = query.
-			Where("it.shipping_id in ?", filter.ShippingIds)
-	}
-
-	if filter.ShopId != 0 {
-		query = query.
-			Where("it.shop_id = ?", filter.ShopId) // not implemented
-	}
-
-	if len(filter.Status) != 0 {
-		query = query.
-			Where("it.status = ?", filter.Status)
-	}
-
-	if filter.Shipment != warehouse_iface.ShipmentStatus_SHIPMENT_STATUS_UNSPECIFIED {
-		switch filter.Shipment {
-		case warehouse_iface.ShipmentStatus_SHIPMENT_STATUS_SEND:
-			query = query.
-				Where("it.is_shipped = ?", true)
-
-		case warehouse_iface.ShipmentStatus_SHIPMENT_STATUS_UNSEND:
-			query = query.
-				Where("it.is_shipped != ?", true)
-		}
-	}
-
-	if len(filter.Marketplaces) != 0 ||
-		filter.ShopId != 0 ||
-		(filter.Q != "" && filter.SearchType == warehouse_iface.OutboundSearchType_OUTBOUND_SEARCH_TYPE_SHOPNAME) {
-		orderQuery, err := o.orderQuery()
-		if err != nil {
-			return nil, err
-		}
-
-		query = query.
-			Where("EXISTS (?)",
-				orderQuery.Select("1"),
-			)
-	}
-
-	// filter time
-	timeFilter := filter.TimeRange
-	if timeFilter != nil {
-		if timeFilter.StartDate.IsValid() {
-			query = query.
-				Where("it.created > ?", timeFilter.StartDate.AsTime())
-		}
-		if timeFilter.EndDate.IsValid() {
-			query = query.
-				Where("it.created <= ?", timeFilter.EndDate.AsTime())
-		}
-	}
-
-	// filter warehouseid
-
-	return query, nil
-
-}
-
-func (o *outboundListQuery) sortQuery(query *gorm.DB, paySort *warehouse_iface.OutboundSort) (*gorm.DB, error) {
-	var key string
-	switch paySort.Type {
-	case common.SortType_SORT_TYPE_ASC:
-		key = "asc nulls last"
-	case common.SortType_SORT_TYPE_DESC:
-		key = "desc nulls last"
-	default:
-		key = "desc nulls last"
-	}
-
-	switch paySort.Field {
-	case warehouse_iface.OutboundSortField_OUTBOUND_SORT_FIELD_CREATED:
-		query = query.Order("it.created " + key)
-	case warehouse_iface.OutboundSortField_OUTBOUND_SORT_FIELD_MP_CREATED:
-		query = query.
-			Joins("JOIN orders o ON o.invertory_tx_id = it.id").
-			Order("o.order_time " + key)
-	default:
-		query = query.Order("it.id desc")
-	}
-
-	return query, nil
-
 }
 
 type InvTransactionList []*db_models.InvTransaction
