@@ -6,11 +6,13 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/pdcgo/schema/services/access_iface/v1"
+	"github.com/pdcgo/schema/services/common/v1"
 	"github.com/pdcgo/schema/services/warehouse_iface/v1"
 	"github.com/pdcgo/shared/custom_connect"
 	"github.com/pdcgo/shared/db_connect"
 	"github.com/pdcgo/shared/db_models"
 	"github.com/pdcgo/shared/interfaces/authorization_iface"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -59,7 +61,8 @@ func (o *outboundImpl) OutboundByProduct(
 	pay := req.Msg
 
 	result := warehouse_iface.OutboundByProductResponse{
-		Data: []*warehouse_iface.OutboundByProductItem{},
+		Data:     []*warehouse_iface.OutboundByProductItem{},
+		PageInfo: &common.PageInfo{},
 	}
 
 	_, err = db_connect.NewQueryChain(db,
@@ -70,12 +73,12 @@ func (o *outboundImpl) OutboundByProduct(
 					Joins("JOIN order_items oi ON oi.order_id = o.id").
 					Select([]string{
 						"oi.variation_id as variation_id",
+						"oi.product_id as product_id",
 						"count(oi.order_id) as tx_count",
 						"sum(oi.count) as item_count",
 					}).
 					Where("status =  ?", db_models.OrdCreated).
-					Group("variation_id").
-					Order("item_count desc")
+					Group("variation_id, product_id")
 
 				if pay.TeamId != 0 {
 					newquery = newquery.
@@ -105,6 +108,25 @@ func (o *outboundImpl) OutboundByProduct(
 				}
 
 				return next(query)
+			}
+		},
+		func(db *gorm.DB, next db_connect.NextFunc) db_connect.NextFunc {
+			return func(query *gorm.DB) (*gorm.DB, error) { // paginated
+
+				var queryPaginated *gorm.DB
+				queryPaginated, result.PageInfo, err = db_connect.SetPaginationQuery(db, func() (*gorm.DB, error) {
+					return query.Session(&gorm.Session{}), nil
+
+				}, pay.Page)
+
+				if err != nil {
+					return query, err
+				}
+
+				return next(
+					queryPaginated.
+						Order("item_count desc"),
+				)
 			}
 		},
 		func(db *gorm.DB, next db_connect.NextFunc) db_connect.NextFunc {
@@ -156,6 +178,63 @@ func (o *outboundImpl) OutboundByProduct(
 					}
 					*skuIds[uint64(sdata.VariantID)] = string(t)
 
+				}
+
+				return next(query)
+			}
+		},
+
+		func(db *gorm.DB, next db_connect.NextFunc) db_connect.NextFunc {
+			return func(query *gorm.DB) (*gorm.DB, error) { // preloading variant
+				variantIds := []uint64{}
+				variantMap := map[uint64]*warehouse_iface.OutboundByProductItem{}
+
+				for _, dd := range result.Data {
+					item := dd
+					variantIds = append(variantIds, item.VariationId)
+					variantMap[item.VariationId] = item
+				}
+
+				datas := []struct {
+					VariantId     uint64
+					ProductName   string
+					Images        datatypes.JSONSlice[string]
+					VariantImage  string
+					VariantNames  datatypes.JSONSlice[string]
+					VariantValues datatypes.JSONSlice[string]
+					VariantRefId  string
+				}{}
+
+				err = db.
+					Table("variation_values vv").
+					Joins("left join products p on p.id = vv.product_id").
+					Where("vv.id in ?", variantIds).
+					Select([]string{
+						"p.name as product_name",
+						"p.image as images",
+						"vv.image as variant_image",
+						"vv.variation_name as variant_names",
+						"vv.variation_value as variant_values",
+						"vv.ref_id as variant_ref_id",
+						"vv.id as variant_id",
+					}).
+					Find(&datas).
+					Error
+
+				if err != nil {
+					return nil, err
+				}
+
+				for _, item := range datas {
+					variantMap[item.VariantId].Variant = &warehouse_iface.OutboundByProductItemVariant{
+						VariantId:     item.VariantId,
+						ProductName:   item.ProductName,
+						Images:        item.Images,
+						VariantImage:  item.VariantImage,
+						VariantNames:  item.VariantNames,
+						VariantValues: item.VariantValues,
+						VariantRefId:  item.VariantRefId,
+					}
 				}
 
 				return next(query)
