@@ -272,16 +272,16 @@ func (o *outboundImpl) OutboundList(
 			}
 		},
 
-		func(db *gorm.DB, next db_connect.NextFunc) db_connect.NextFunc {
-			return func(query *gorm.DB) (*gorm.DB, error) { // filter shopid
-				if filter.ShopId != 0 {
-					query = query.
-						Where("it.shop_id = ?", filter.ShopId)
-				}
+		// func(db *gorm.DB, next db_connect.NextFunc) db_connect.NextFunc {
+		// 	return func(query *gorm.DB) (*gorm.DB, error) { // filter shopid
+		// 		if filter.ShopId != 0 {
+		// 			query = query.
+		// 				Where("it.shop_id = ?", filter.ShopId)
+		// 		}
 
-				return next(query)
-			}
-		},
+		// 		return next(query)
+		// 	}
+		// },
 
 		func(db *gorm.DB, next db_connect.NextFunc) db_connect.NextFunc {
 			return func(query *gorm.DB) (*gorm.DB, error) { // filter shipment status

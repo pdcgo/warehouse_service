@@ -490,8 +490,12 @@ github.com/modern-go/reflect2 v1.0.2/go.mod h1:yWuevngMOJpCy52FWWMvUC8ws7m/LJsjY
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLANZcx1PVRCS0qkT7pwLkGfwJo4zjcN/Tysno=
 github.com/pdcgo/schema v1.0.105 h1:0jdxOi624Ffi13JQkhFnktoIZxlCzqg7NYRkuyT2G2w=
 github.com/pdcgo/schema v1.0.105/go.mod h1:PFVdZ4apphj9eQ3JPMhf8plHqRn2gB9sOyCzy/Iz50M=
+github.com/pdcgo/schema v1.0.111 h1:CJqQKWwdcOM8jTBLklQLAY9sCdgaxQDvFFYkADXI1so=
+github.com/pdcgo/schema v1.0.111/go.mod h1:PFVdZ4apphj9eQ3JPMhf8plHqRn2gB9sOyCzy/Iz50M=
 github.com/pdcgo/shared v1.0.121 h1:nMfRUMoix5W9ckHZXPVyiYcC/m8YcUIGlSG+FlItXZI=
 github.com/pdcgo/shared v1.0.121/go.mod h1:bEhNrVfDNSOPR7ekV0CvnsRR/4WgSOc2mzIUrGZ8Eyg=
+github.com/pdcgo/shared v1.0.125 h1:U/kv9ZE2xxLahTjvYz9s3Fq1R1zGH18GbL1Kdpn9lRM=
+github.com/pdcgo/shared v1.0.125/go.mod h1:bEhNrVfDNSOPR7ekV0CvnsRR/4WgSOc2mzIUrGZ8Eyg=
 github.com/pdcgo/v2_gots_sdk v1.3.10 h1:8rQFfldS6SRJE83VStmIWh74iNjVscr1IATLHKg9lo8=
 github.com/pdcgo/v2_gots_sdk v1.3.10/go.mod h1:nqDzEP3OcyGuvHrA/r4VbR3972JKdII/AOEoY1yy7Kk=
 github.com/pelletier/go-toml/v2 v2.2.4 h1:mye9XuhQ6gvn5h28+VilKrrPoQVanw5PMw/TB0t5Ec4=
