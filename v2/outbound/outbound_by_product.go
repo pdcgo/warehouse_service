@@ -59,6 +59,7 @@ func (o *outboundImpl) OutboundByProduct(
 
 	db := o.db.WithContext(ctx)
 	pay := req.Msg
+	filter := pay.Filter
 
 	result := warehouse_iface.OutboundByProductResponse{
 		Data:     []*warehouse_iface.OutboundByProductItem{},
@@ -77,17 +78,29 @@ func (o *outboundImpl) OutboundByProduct(
 						"count(oi.order_id) as tx_count",
 						"sum(oi.count) as item_count",
 					}).
-					Where("status =  ?", db_models.OrdCreated).
+					// Where("status = ?", db_models.OrdCreated).
+					Where("o.invertory_tx_id is not null").
 					Group("variation_id, product_id")
 
-				if pay.TeamId != 0 {
+				if filter.TeamId != 0 {
 					newquery = newquery.
-						Where("o.team_id = ?", pay.TeamId)
+						Where("o.team_id = ?", filter.TeamId)
 				}
 
-				if pay.ShopId != 0 {
+				if filter.ShopId != 0 {
 					newquery = newquery.
-						Where("o.order_mp_id = ?", pay.ShopId)
+						Where("o.order_mp_id = ?", filter.ShopId)
+				}
+
+				trange := filter.TimeRange
+				if trange.StartDate.IsValid() {
+					newquery = newquery.
+						Where("o.created_at >= ?", trange.StartDate.AsTime())
+				}
+
+				if trange.EndDate.IsValid() {
+					newquery = newquery.
+						Where("o.created_at <= ?", trange.EndDate.AsTime())
 				}
 
 				return next(newquery)
@@ -96,15 +109,26 @@ func (o *outboundImpl) OutboundByProduct(
 		func(db *gorm.DB, next db_connect.NextFunc) db_connect.NextFunc {
 			return func(query *gorm.DB) (*gorm.DB, error) { // filtering warehouse id
 
-				if pay.WarehouseId != 0 {
+				if filter.WarehouseId != 0 {
 					exists := db.
 						Table("inv_transactions it").
 						Where("it.id = o.invertory_tx_id").
-						Where("it.warehouse_id = ?", pay.WarehouseId).
-						Select("1")
+						Where("it.warehouse_id = ?", filter.WarehouseId)
+
+					if len(filter.TxStatus) == 0 {
+						exists = exists.
+							Where("it.status = ?", "waiting")
+					} else {
+						exists = exists.
+							Where("it.status in ?", filter.TxStatus)
+					}
 
 					query = query.
-						Where("EXISTS (?)", exists)
+						Where(
+							"EXISTS (?)",
+							exists.
+								Select("1"),
+						)
 				}
 
 				return next(query)
@@ -163,6 +187,7 @@ func (o *outboundImpl) OutboundByProduct(
 				err = db.
 					Model(&db_models.Sku{}).
 					Where("variant_id in ?", varIds).
+					Where("warehouse_id = ?", filter.WarehouseId).
 					Select("id").
 					Find(&temp).
 					Error

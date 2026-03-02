@@ -75,7 +75,6 @@ func (o *outboundImpl) OutboundList(
 	db := o.
 		db.
 		WithContext(ctx)
-	// Debug()
 
 	result := warehouse_iface.OutboundListResponse{
 		Data:     []*warehouse_iface.Outbound{},
@@ -382,6 +381,12 @@ func (o *outboundImpl) OutboundList(
 					query = query.
 						Joins("JOIN orders o ON o.invertory_tx_id = it.id").
 						Order("o.order_time " + key)
+				case warehouse_iface.OutboundSortField_OUTBOUND_SORT_FIELD_DEADLINE:
+					query = query.
+						Joins("JOIN orders o ON o.invertory_tx_id = it.id").
+						Where("o.order_deadline is not null").
+						Order("o.order_deadline " + key)
+
 				default:
 					query = query.Order("it.id desc")
 				}
@@ -442,7 +447,8 @@ func NewGetResult(result *warehouse_iface.OutboundListResponse) db_connect.NextH
 						Id:     uint64(ord.ID),
 						ShopId: uint64(ord.OrderMpID),
 						// CustomerId: ord.,
-						OrderTime: timestamppb.New(ord.OrderTime),
+						OrderTime:    timestamppb.New(ord.OrderTime),
+						DeadlineTime: timestamppb.New(ord.OrderDeadline),
 					},
 				}
 			}
