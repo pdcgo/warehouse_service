@@ -3,6 +3,7 @@ package outbound
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"connectrpc.com/connect"
@@ -367,20 +368,21 @@ func (o *outboundImpl) OutboundList(
 				var key string
 				switch paySort.Type {
 				case common.SortType_SORT_TYPE_ASC:
-					key = "asc nulls last"
+					key = "asc"
 				case common.SortType_SORT_TYPE_DESC:
-					key = "desc nulls last"
+					key = "desc"
 				default:
-					key = "desc nulls last"
+					key = "desc"
 				}
 
 				switch paySort.Field {
 				case warehouse_iface.OutboundSortField_OUTBOUND_SORT_FIELD_CREATED:
 					query = query.Order("it.created " + key)
 				case warehouse_iface.OutboundSortField_OUTBOUND_SORT_FIELD_MP_CREATED:
+
 					query = query.
 						Joins("JOIN orders o ON o.invertory_tx_id = it.id").
-						Order("o.order_time " + key)
+						Order("o.order_time " + fmt.Sprintf("%s null lasts", key))
 				case warehouse_iface.OutboundSortField_OUTBOUND_SORT_FIELD_DEADLINE:
 					query = query.
 						Joins("JOIN orders o ON o.invertory_tx_id = it.id").
