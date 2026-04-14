@@ -161,6 +161,7 @@ func PreloadTransaction(db *gorm.DB, txmap map[uint64]*warehouse_iface.Transacti
 			txs := []*db_models.InvTransaction{}
 			err = db.
 				Model(&db_models.InvTransaction{}).
+				Preload("Items").
 				Where("id in ?", txIds).
 				Find(&txs).
 				Error
@@ -170,6 +171,30 @@ func PreloadTransaction(db *gorm.DB, txmap map[uint64]*warehouse_iface.Transacti
 			}
 
 			for _, tx := range txs {
+				txItems := make([]*warehouse_iface.TransactionItem, len(tx.Items))
+
+				for i, item := range tx.Items {
+					skuData, err := item.SkuID.Extract()
+					if err != nil {
+						return nil, err
+					}
+
+					txItems[i] = &warehouse_iface.TransactionItem{
+						Id:    uint64(item.ID),
+						SkuId: string(item.SkuID),
+						Owned: item.Owned,
+						Count: int64(item.Count),
+						Price: item.Price,
+						Total: item.Total,
+						SkuDetail: &warehouse_iface.SkuDataDetail{
+							ProductId:   uint64(skuData.ProductID),
+							VariantId:   uint64(skuData.VariantID),
+							WarehouseId: uint64(skuData.WarehouseID),
+							TeamId:      uint64(skuData.TeamID),
+						},
+					}
+				}
+
 				data := &warehouse_iface.TransactionDetail{
 					Id:          uint64(tx.ID),
 					TeamId:      uint64(tx.TeamID),
@@ -178,11 +203,12 @@ func PreloadTransaction(db *gorm.DB, txmap map[uint64]*warehouse_iface.Transacti
 					ExternOrdId: tx.ExternOrdID,
 					Receipt:     tx.Receipt,
 					ReceiptFile: tx.ReceiptFile,
-					// Type:        tx.Type,
-					// Status:      tx.Status,
-					IsShipped: tx.IsShipped,
-					Total:     tx.Total,
-					Created:   timestamppb.New(tx.Created),
+					Items:       txItems,
+					IsShipped:   tx.IsShipped,
+					Total:       tx.Total,
+					Created:     timestamppb.New(tx.Created),
+					Status:      string(tx.Status),
+					Type:        string(tx.Type),
 				}
 
 				if tx.VerifyByID != nil {
