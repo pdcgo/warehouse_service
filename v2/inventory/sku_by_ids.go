@@ -26,6 +26,7 @@ func (i *inventoryServiceImpl) SkuByIDs(
 	db := i.db.WithContext(ctx)
 
 	prodMap := map[uint64]*warehouse_iface.ProductDetail{}
+	variantMap := map[uint64]*warehouse_iface.VariationDetail{}
 
 	caller := common_helper.NewChainParam(
 		func(next common_helper.NextFuncParam[*gorm.DB]) common_helper.NextFuncParam[*gorm.DB] {
@@ -33,13 +34,20 @@ func (i *inventoryServiceImpl) SkuByIDs(
 
 				res := []*warehouse_iface.SkuListItem{}
 
-				err = query.
+				squery := query.
 					Table("public.skus s").
-					Where("s.id in ?", pay.SkuIds).
-					Where("s.warehouse_id = ?", pay.WarehouseId).
+					Where("s.id in ?", pay.SkuIds)
+
+				if pay.WarehouseId != 0 {
+					squery = squery.
+						Where("s.warehouse_id = ?", pay.WarehouseId)
+				}
+
+				err = squery.
 					Select([]string{
 						"s.id as sku_id",
 						"s.product_id",
+						"s.variant_id",
 					}).
 					Find(&res).
 					Error
@@ -53,7 +61,12 @@ func (i *inventoryServiceImpl) SkuByIDs(
 						prodMap[sku.ProductId] = &warehouse_iface.ProductDetail{}
 					}
 
+					if _, ok := variantMap[sku.VariantId]; !ok {
+						variantMap[sku.VariantId] = &warehouse_iface.VariationDetail{}
+					}
+
 					sku.ProductDetail = prodMap[sku.ProductId]
+					sku.VariationDetail = variantMap[sku.VariantId]
 					result.Skus[sku.SkuId] = sku
 				}
 
@@ -77,6 +90,7 @@ func (i *inventoryServiceImpl) SkuByIDs(
 						"id",
 						"name",
 						"image",
+						"ref_id",
 					}).
 					Find(&res).
 					Error
@@ -89,9 +103,41 @@ func (i *inventoryServiceImpl) SkuByIDs(
 					p := warehouse_iface.ProductDetail{
 						Name:  prod.Name,
 						Image: prod.Image[0],
+						RefId: string(prod.RefID),
 					}
 
 					proto.Merge(prodMap[uint64(prod.ID)], &p)
+				}
+
+				return next(query)
+			}
+		},
+		func(next common_helper.NextFuncParam[*gorm.DB]) common_helper.NextFuncParam[*gorm.DB] {
+			return func(query *gorm.DB) (*gorm.DB, error) { // preloading variant
+
+				variantIds := []uint64{}
+				for vid := range variantMap {
+					variantIds = append(variantIds, vid)
+				}
+
+				res := []*db_models.VariationValue{}
+
+				err = query.
+					Model(&db_models.VariationValue{}).
+					Where("id in ?", variantIds).
+					Find(&res).
+					Error
+
+				if err != nil {
+					return query, err
+				}
+
+				for _, variant := range res {
+					v := warehouse_iface.VariationDetail{
+						RefId: string(variant.RefID),
+					}
+
+					proto.Merge(variantMap[uint64(variant.ID)], &v)
 				}
 
 				return next(query)
