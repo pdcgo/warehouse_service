@@ -13,6 +13,11 @@ import (
 	"gorm.io/gorm"
 )
 
+// type ReturnPlan struct {
+// 	TeamId       uint64
+// 	ReturnPlanId uint64
+// }
+
 // OrderDetailSearch implements warehouse_ifaceconnect.OutboundServiceHandler.
 func (o *outboundImpl) OrderDetailSearch(
 	ctx context.Context,
@@ -24,11 +29,13 @@ func (o *outboundImpl) OrderDetailSearch(
 	txmap := map[uint64]*warehouse_iface.TransactionDetail{}
 	retTxMap := map[uint64]*warehouse_iface.TransactionDetail{}
 	custMap := map[uint64]*warehouse_iface.CustomerDetail{}
+	// returPlanMap := map[uint64]*ReturnPlan{}
+	orders := []*db_models.Order{}
 
 	pay := req.Msg
 	result := &warehouse_iface.OrderDetailSearchResponse{}
 
-	db := o.db.WithContext(ctx).Debug()
+	db := o.db.WithContext(ctx)
 
 	caller := common_helper.NewChainParam(
 		func(next common_helper.NextFuncParam[*gorm.DB]) common_helper.NextFuncParam[*gorm.DB] {
@@ -37,18 +44,27 @@ func (o *outboundImpl) OrderDetailSearch(
 				orderQuery := query.
 					Table("public.orders o")
 
+				planReturnQuery := query.
+					Table("public.team_infos ti").
+					Where("ti.team_id = o.team_id").
+					Where("ti.return_warehouse_id = ?", pay.WarehouseId).
+					Select("1")
+
+				txQuery := query.
+					Table("public.inv_transactions it").
+					Where("it.id = o.invertory_tx_id or it.id = o.invertory_return_tx_id").
+					Where("it.warehouse_id = ?", pay.WarehouseId).
+					Select("1")
+
+				orderQuery = orderQuery.
+					Where("( EXISTS (?) or EXISTS (?) )", planReturnQuery, txQuery)
+
 				switch search := pay.Search.(type) {
 				case *warehouse_iface.OrderDetailSearchRequest_Receipt: // receipt
 					receipt := strings.ToLower(search.Receipt)
 					receipt = strings.TrimSpace(receipt) + "%"
-					txQuery := query.
-						Table("public.inv_transactions it").
-						Where("it.receipt ilike ?", receipt).
-						Where("it.id = o.invertory_tx_id or it.id = o.invertory_return_tx_id").
-						Select("1")
 
-					orderQuery = orderQuery.
-						Where("EXISTS (?)", txQuery)
+					orderQuery = orderQuery.Where("( o.receipt ilike ? or o.receipt_return ilike ? )", receipt, receipt)
 
 				case *warehouse_iface.OrderDetailSearchRequest_OrderRefId: // order_ref_id
 					orderRefId := strings.TrimSpace(search.OrderRefId) + "%"
@@ -86,7 +102,6 @@ func (o *outboundImpl) OrderDetailSearch(
 			return func(query *gorm.DB) (*gorm.DB, error) { // loading orders
 				var err error
 
-				orders := []*db_models.Order{}
 				err = query.
 					Limit(int(pay.Limit)).
 					Find(&orders).
@@ -144,7 +159,38 @@ func (o *outboundImpl) OrderDetailSearch(
 		PreloadCustomerDetail(db, custMap),
 	)
 
+	// call caller
 	_, err = caller(db)
+	if err != nil {
+		return nil, err
+	}
+
+	// // check warehouse id
+	// for _, item := range result.Data {
+	// 	warehouseIds := []uint64{}
+	// 	if item.Outbound != nil {
+	// 		warehouseIds = append(warehouseIds, item.Outbound.WarehouseId)
+	// 	}
+	// 	if item.Inbound != nil {
+	// 		warehouseIds = append(warehouseIds, item.Inbound.WarehouseId)
+	// 	}
+
+	// 	if len(warehouseIds) == 0 {
+	// 		return nil, errors.New("all warehouse id empty")
+	// 	}
+
+	// 	var isWarehouseAllow bool
+	// 	for _, wareId := range warehouseIds {
+	// 		if wareId == pay.WarehouseId {
+	// 			isWarehouseAllow = true
+	// 		}
+	// 	}
+
+	// 	if !isWarehouseAllow {
+
+	// 		return nil, errors.New("this warehouse cannot access this order")
+	// 	}
+	// }
 
 	return connect.NewResponse(result), err
 }
