@@ -88,6 +88,10 @@ func (o *outboundImpl) OrderDetailSearch(
 					orderQuery = orderQuery.
 						Where("EXISTS (?)", custQuery)
 
+				case *warehouse_iface.OrderDetailSearchRequest_TxId: // tx_id
+					orderQuery = orderQuery.
+						Where("o.invertory_tx_id = ? or o.invertory_return_tx_id = ?", search.TxId, search.TxId)
+
 				}
 
 				if pay.Status != "" {

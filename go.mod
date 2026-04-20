@@ -5,8 +5,8 @@ go 1.24.2
 require (
 	connectrpc.com/connect v1.19.1
 	github.com/google/wire v0.7.0
-	github.com/pdcgo/schema v1.0.111
-	github.com/pdcgo/shared v1.0.125
+	github.com/pdcgo/schema v1.0.116
+	github.com/pdcgo/shared v1.0.131
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/net v0.47.0
 	google.golang.org/protobuf v1.36.11
