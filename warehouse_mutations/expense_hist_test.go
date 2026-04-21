@@ -9,7 +9,7 @@ import (
 	"github.com/pdcgo/shared/db_models"
 	"github.com/pdcgo/shared/pkg/moretest"
 	"github.com/pdcgo/shared/pkg/moretest/moretest_mock"
-	"github.com/pdcgo/warehouse_service/models"
+	"github.com/pdcgo/warehouse_service/warehouse_models"
 	"github.com/pdcgo/warehouse_service/warehouse_mutations"
 	"github.com/pdcgo/warehouse_service/warehouse_query"
 	"github.com/stretchr/testify/assert"
@@ -64,8 +64,8 @@ func TestWareExpenseHistory(t *testing.T) {
 		return &accType
 	}
 
-	seedAccount := func(whID, accountType uint, name, numberID string) *models.WareExpenseAccountWarehouse {
-		account := models.WareExpenseAccount{
+	seedAccount := func(whID, accountType uint, name, numberID string) *warehouse_models.WareExpenseAccountWarehouse {
+		account := warehouse_models.WareExpenseAccount{
 			AccountTypeID: 1,
 			Name:          name,
 			NumberID:      numberID,
@@ -74,7 +74,7 @@ func TestWareExpenseHistory(t *testing.T) {
 		err := db.Create(&account).Error
 		assert.Nil(t, err)
 
-		wareAccount := models.WareExpenseAccountWarehouse{
+		wareAccount := warehouse_models.WareExpenseAccountWarehouse{
 			AccountID:   account.ID,
 			WarehouseID: whID,
 			Account:     &account,
@@ -92,10 +92,10 @@ func TestWareExpenseHistory(t *testing.T) {
 			moretest_mock.MockSqliteDatabase(&db),
 			func(t *testing.T) func() error {
 				err := db.AutoMigrate(
-					&models.WareExpenseAccount{},
-					&models.WareExpenseAccountWarehouse{},
-					&models.WareExpenseHistory{},
-					&models.WareBalanceAccountHistory{},
+					&warehouse_models.WareExpenseAccount{},
+					&warehouse_models.WareExpenseAccountWarehouse{},
+					&warehouse_models.WareExpenseHistory{},
+					&warehouse_models.WareBalanceAccountHistory{},
 					&db_models.Team{},
 					&db_models.User{},
 					&db_models.UserTeam{},
@@ -122,7 +122,7 @@ func TestWareExpenseHistory(t *testing.T) {
 
 				err = expenseService.
 					Create(warehouseTeam.Type, &warehouse_mutations.CreateExpensePayload{
-						ExpenseType: models.ExpenseTypeOther,
+						ExpenseType: warehouse_models.ExpenseTypeOther,
 						At:          time.Now(),
 						Amount:      54_000,
 						Note:        "expense daily",
@@ -133,7 +133,7 @@ func TestWareExpenseHistory(t *testing.T) {
 			t.Run("test edit expense history from warehouse", func(t *testing.T) {
 				expenseQuery := warehouse_query.NewWarehouseExpenseQuery(&db, false)
 
-				expense := models.WareExpenseHistory{}
+				expense := warehouse_models.WareExpenseHistory{}
 				err := expenseQuery.
 					FromAccount(account.AccountID).
 					FromWarehouse(warehouseTeam.ID).
@@ -153,7 +153,7 @@ func TestWareExpenseHistory(t *testing.T) {
 					WarehouseID: warehouseTeam.ID,
 					AccountID:   account.AccountID,
 					CreatedByID: warehouseUser.ID,
-					ExpenseType: models.ExpenseTypeKitchen,
+					ExpenseType: warehouse_models.ExpenseTypeKitchen,
 					Amount:      51_000,
 					Note:        "expense kitchen",
 					At:          expense.At,
@@ -163,7 +163,7 @@ func TestWareExpenseHistory(t *testing.T) {
 				t.Run("test data updated", func(t *testing.T) {
 					expenseQuery := warehouse_query.NewWarehouseExpenseQuery(&db, false)
 
-					expense := models.WareExpenseHistory{}
+					expense := warehouse_models.WareExpenseHistory{}
 					err := expenseQuery.
 						FromAccount(account.AccountID).
 						FromWarehouse(warehouseTeam.ID).
@@ -174,7 +174,7 @@ func TestWareExpenseHistory(t *testing.T) {
 					assert.Nil(t, err)
 					assert.NotEmpty(t, expense)
 					assert.Equal(t, float64(51_000), expense.Amount)
-					assert.Equal(t, models.ExpenseTypeKitchen, expense.ExpenseType)
+					assert.Equal(t, warehouse_models.ExpenseTypeKitchen, expense.ExpenseType)
 				})
 			})
 		},

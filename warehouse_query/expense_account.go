@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/pdcgo/warehouse_service/models"
+	"github.com/pdcgo/warehouse_service/warehouse_models"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
 func NewWarehouseExpenseAccountQuery(tx *gorm.DB, lock bool) WarehouseExpenseAccountQuery {
-	sqlQuery := tx.Model(&models.WareExpenseAccountWarehouse{})
+	sqlQuery := tx.Model(&warehouse_models.WareExpenseAccountWarehouse{})
 	if lock {
 		sqlQuery = sqlQuery.Clauses(clause.Locking{
 			Strength: "UPDATE",
@@ -117,7 +117,7 @@ func NewWareExpenseAccountQuery(tx *gorm.DB, lock bool) WareExpenseAccountQuery 
 		})
 	}
 	return &wareExpenseAccountQueryImpl{
-		tx: tx.Model(&models.WareExpenseAccount{}),
+		tx: tx.Model(&warehouse_models.WareExpenseAccount{}),
 	}
 }
 

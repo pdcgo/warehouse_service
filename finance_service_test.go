@@ -15,7 +15,7 @@ import (
 	"github.com/pdcgo/shared/pkg/moretest"
 	"github.com/pdcgo/shared/pkg/moretest/moretest_mock"
 	"github.com/pdcgo/warehouse_service"
-	"github.com/pdcgo/warehouse_service/models"
+	"github.com/pdcgo/warehouse_service/warehouse_models"
 	"github.com/stretchr/testify/assert"
 	"gorm.io/gorm"
 )
@@ -97,9 +97,9 @@ func TestFinanceService(t *testing.T) {
 			moretest_mock.MockSqliteDatabase(&db),
 			func(t *testing.T) func() error {
 				err := db.AutoMigrate(
-					&models.WareExpenseAccount{},
-					&models.WareExpenseAccountWarehouse{},
-					&models.WareExpenseHistory{},
+					&warehouse_models.WareExpenseAccount{},
+					&warehouse_models.WareExpenseAccountWarehouse{},
+					&warehouse_models.WareExpenseHistory{},
 					&db_models.Team{},
 					&db_models.User{},
 					&db_models.UserTeam{},

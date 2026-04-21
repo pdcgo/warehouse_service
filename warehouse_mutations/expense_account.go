@@ -3,7 +3,7 @@ package warehouse_mutations
 import (
 	"errors"
 
-	"github.com/pdcgo/warehouse_service/models"
+	"github.com/pdcgo/warehouse_service/warehouse_models"
 	"github.com/pdcgo/warehouse_service/warehouse_query"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -19,7 +19,7 @@ func NewExpenseAccountService(tx *gorm.DB, warehouseID uint) ExpenseAccount {
 var ErrExpenseAccountNotFound = errors.New("expense account not found")
 
 type ExpenseAccount interface {
-	GetByQuery(lock bool, query func(tx *gorm.DB) *gorm.DB) (*models.WareExpenseAccountWarehouse, error)
+	GetByQuery(lock bool, query func(tx *gorm.DB) *gorm.DB) (*warehouse_models.WareExpenseAccountWarehouse, error)
 	Update(accountTypeID uint, isOpsAccount bool, name, numberId string) error
 	Disabled(isDisabled bool) error
 }
@@ -29,11 +29,11 @@ type expenseAccountImpl struct {
 
 	warehouseId uint
 
-	data *models.WareExpenseAccountWarehouse
+	data *warehouse_models.WareExpenseAccountWarehouse
 }
 
-func (e *expenseAccountImpl) GetByQuery(lock bool, query func(tx *gorm.DB) *gorm.DB) (*models.WareExpenseAccountWarehouse, error) {
-	e.data = &models.WareExpenseAccountWarehouse{}
+func (e *expenseAccountImpl) GetByQuery(lock bool, query func(tx *gorm.DB) *gorm.DB) (*warehouse_models.WareExpenseAccountWarehouse, error) {
+	e.data = &warehouse_models.WareExpenseAccountWarehouse{}
 
 	tx := e.tx
 	if lock {
@@ -42,7 +42,7 @@ func (e *expenseAccountImpl) GetByQuery(lock bool, query func(tx *gorm.DB) *gorm
 			Options:  "NOWAIT",
 		})
 	}
-	tx = tx.Model(&models.WareExpenseAccountWarehouse{}).
+	tx = tx.Model(&warehouse_models.WareExpenseAccountWarehouse{}).
 		Joins("JOIN ware_expense_accounts ON ware_expense_accounts.id = ware_expense_account_warehouses.account_id")
 	if e.warehouseId != 0 {
 		tx = tx.Where("ware_expense_account_warehouses.warehouse_id = ?", e.warehouseId)
@@ -76,7 +76,7 @@ func (e *expenseAccountImpl) Update(accountTypeID uint, isOpsAccount bool, name,
 			IsOpsAccount(true).
 			GetQuery()
 
-		accountOps := models.WareExpenseAccount{}
+		accountOps := warehouse_models.WareExpenseAccount{}
 		err := sqlQuery.Find(&accountOps).Error
 		if err != nil {
 			return err
@@ -87,7 +87,7 @@ func (e *expenseAccountImpl) Update(accountTypeID uint, isOpsAccount bool, name,
 		}
 	}
 
-	err := e.tx.Model(&models.WareExpenseAccount{}).
+	err := e.tx.Model(&warehouse_models.WareExpenseAccount{}).
 		Where("ware_expense_accounts.id = ?", e.data.AccountID).
 		Updates(map[string]interface{}{
 			"account_type_id": accountTypeID,
@@ -98,7 +98,7 @@ func (e *expenseAccountImpl) Update(accountTypeID uint, isOpsAccount bool, name,
 		return err
 	}
 
-	err = e.tx.Model(&models.WareExpenseAccountWarehouse{}).
+	err = e.tx.Model(&warehouse_models.WareExpenseAccountWarehouse{}).
 		Where("ware_expense_account_warehouses.warehouse_id = ?", e.warehouseId).
 		Where("ware_expense_account_warehouses.account_id = ?", e.data.AccountID).
 		Update("is_ops_account", isOpsAccount).Error
@@ -119,7 +119,7 @@ func (e *expenseAccountImpl) Disabled(isDisabled bool) error {
 		return errors.New("expense account not initialized")
 	}
 
-	err := e.tx.Model(&models.WareExpenseAccount{}).
+	err := e.tx.Model(&warehouse_models.WareExpenseAccount{}).
 		Where("ware_expense_accounts.id = ?", e.data.ID).
 		Updates(map[string]interface{}{
 			"disabled": isDisabled,

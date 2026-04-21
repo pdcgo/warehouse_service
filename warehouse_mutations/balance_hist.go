@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/pdcgo/shared/interfaces/identity_iface"
-	"github.com/pdcgo/warehouse_service/models"
+	"github.com/pdcgo/warehouse_service/warehouse_models"
 	"github.com/pdcgo/warehouse_service/warehouse_query"
 	"gorm.io/gorm"
 )
@@ -24,14 +24,14 @@ type wareBalanceAccountHistImpl struct {
 	tx    *gorm.DB
 	agent identity_iface.Agent
 
-	account *models.WareExpenseAccountWarehouse
-	data    *models.WareBalanceAccountHistory
+	account *warehouse_models.WareExpenseAccountWarehouse
+	data    *warehouse_models.WareBalanceAccountHistory
 }
 
 func (w *wareBalanceAccountHistImpl) Create(accountID uint, amount float64, at time.Time) error {
 	var err error
-	w.account = &models.WareExpenseAccountWarehouse{}
-	w.data = &models.WareBalanceAccountHistory{}
+	w.account = &warehouse_models.WareExpenseAccountWarehouse{}
+	w.data = &warehouse_models.WareBalanceAccountHistory{}
 
 	accountQuery := warehouse_query.NewWarehouseExpenseAccountQuery(w.tx, false)
 	err = accountQuery.
@@ -54,7 +54,7 @@ func (w *wareBalanceAccountHistImpl) Create(accountID uint, amount float64, at t
 		return err
 	}
 	if w.data.ID == 0 { // create if doesn't exist
-		w.data = &models.WareBalanceAccountHistory{
+		w.data = &warehouse_models.WareBalanceAccountHistory{
 			WarehouseID: w.account.WarehouseID,
 			AccountID:   w.account.AccountID,
 			CreatedByID: w.agent.GetUserID(),
@@ -71,7 +71,7 @@ func (w *wareBalanceAccountHistImpl) Create(accountID uint, amount float64, at t
 		return nil
 	}
 
-	err = w.tx.Model(&models.WareBalanceAccountHistory{}).
+	err = w.tx.Model(&warehouse_models.WareBalanceAccountHistory{}).
 		Where("id = ?", w.data.ID).
 		Where("warehouse_id = ?", w.account.WarehouseID).
 		Updates(map[string]interface{}{

@@ -1,4 +1,4 @@
-package models
+package warehouse_models
 
 import (
 	"slices"

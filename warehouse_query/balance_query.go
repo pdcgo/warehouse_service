@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/pdcgo/warehouse_service/models"
+	"github.com/pdcgo/warehouse_service/warehouse_models"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
 func NewWarehouseBalanceHistQuery(tx *gorm.DB, lock bool) WarehouseBalanceHistQuery {
-	sqlQuery := tx.Model(&models.WareBalanceAccountHistory{})
+	sqlQuery := tx.Model(&warehouse_models.WareBalanceAccountHistory{})
 	if lock {
 		sqlQuery = sqlQuery.Clauses(clause.Locking{
 			Strength: "UPDATE",

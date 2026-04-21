@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/pdcgo/shared/interfaces/identity_iface"
-	"github.com/pdcgo/warehouse_service/models"
+	"github.com/pdcgo/warehouse_service/warehouse_models"
 	"github.com/pdcgo/warehouse_service/warehouse_query"
 	"gorm.io/gorm"
 )
@@ -19,17 +19,17 @@ func NewCreateWarehouseExpenseAccount(tx *gorm.DB, agent identity_iface.Agent) C
 }
 
 type CreateWarehouseExpenseAccount interface {
-	Create(warehouseID, accountTypeID uint, name, numberID string, isOpsAccount bool) (*models.WareExpenseAccountWarehouse, error)
+	Create(warehouseID, accountTypeID uint, name, numberID string, isOpsAccount bool) (*warehouse_models.WareExpenseAccountWarehouse, error)
 }
 
 type createWarehouseExpenseAccountImpl struct {
 	tx    *gorm.DB
 	agent identity_iface.Agent
 
-	data *models.WareExpenseAccountWarehouse
+	data *warehouse_models.WareExpenseAccountWarehouse
 }
 
-func (w *createWarehouseExpenseAccountImpl) Create(warehouseID, accountTypeID uint, name, numberID string, isOpsAccount bool) (*models.WareExpenseAccountWarehouse, error) {
+func (w *createWarehouseExpenseAccountImpl) Create(warehouseID, accountTypeID uint, name, numberID string, isOpsAccount bool) (*warehouse_models.WareExpenseAccountWarehouse, error) {
 	var err error
 
 	err = w.checkNumberID(warehouseID, numberID)
@@ -44,7 +44,7 @@ func (w *createWarehouseExpenseAccountImpl) Create(warehouseID, accountTypeID ui
 		}
 	}
 
-	account := models.WareExpenseAccount{
+	account := warehouse_models.WareExpenseAccount{
 		AccountTypeID: accountTypeID,
 		Name:          name,
 		NumberID:      numberID,
@@ -55,7 +55,7 @@ func (w *createWarehouseExpenseAccountImpl) Create(warehouseID, accountTypeID ui
 		return nil, err
 	}
 
-	wareExpenseAccountWarehouse := models.WareExpenseAccountWarehouse{
+	wareExpenseAccountWarehouse := warehouse_models.WareExpenseAccountWarehouse{
 		AccountID:    account.ID,
 		WarehouseID:  uint(warehouseID),
 		IsOpsAccount: isOpsAccount,
@@ -75,7 +75,7 @@ func (w *createWarehouseExpenseAccountImpl) checkNumberID(warehouseID uint, numb
 
 	warehouseQuery := warehouse_query.NewWarehouseExpenseAccountQuery(w.tx, false)
 
-	data := models.WareExpenseAccountWarehouse{}
+	data := warehouse_models.WareExpenseAccountWarehouse{}
 	err := warehouseQuery.
 		FromWarehouse(warehouseID).
 		JoinWareExpenseAccount("JOIN").
@@ -97,7 +97,7 @@ func (w *createWarehouseExpenseAccountImpl) checkOpsAccount(warehouseID uint) er
 
 	warehouseQuery := warehouse_query.NewWarehouseExpenseAccountQuery(w.tx, false)
 
-	data := models.WareExpenseAccountWarehouse{}
+	data := warehouse_models.WareExpenseAccountWarehouse{}
 	err := warehouseQuery.
 		FromWarehouse(warehouseID).
 		IsOpsAccount(true).

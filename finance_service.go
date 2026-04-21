@@ -9,7 +9,8 @@ import (
 	"github.com/pdcgo/shared/authorization"
 	"github.com/pdcgo/shared/interfaces/authorization_iface"
 	"github.com/pdcgo/shared/interfaces/warehouse_iface"
-	"github.com/pdcgo/warehouse_service/models"
+
+	"github.com/pdcgo/warehouse_service/warehouse_models"
 	"github.com/pdcgo/warehouse_service/warehouse_mutations"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"gorm.io/gorm"
@@ -32,7 +33,7 @@ type warehouseFinImpl struct {
 func (w *warehouseFinImpl) ExpenseAccountCreate(ctx context.Context, payload *warehouse_iface.ExpenseAccountCreateReq) (*warehouse_iface.WarehouseExpenseAccount, error) {
 	identity := ctx.Value("identity").(*authorization.JwtIdentity)
 	err := w.auth.HasPermission(identity, authorization_iface.CheckPermissionGroup{
-		&models.WareExpenseAccount{}: &authorization_iface.CheckPermission{
+		&warehouse_models.WareExpenseAccount{}: &authorization_iface.CheckPermission{
 			DomainID: uint(payload.DomainId),
 			Actions:  []authorization_iface.Action{authorization_iface.Create},
 		},
@@ -79,7 +80,7 @@ func (w *warehouseFinImpl) ExpenseAccountCreate(ctx context.Context, payload *wa
 func (w *warehouseFinImpl) ExpenseAccountEdit(ctx context.Context, payload *warehouse_iface.ExpenseAccountEditReq) (*warehouse_iface.WarehouseExpenseAccount, error) {
 	identity := ctx.Value("identity").(*authorization.JwtIdentity)
 	err := w.auth.HasPermission(identity, authorization_iface.CheckPermissionGroup{
-		&models.WareExpenseAccount{}: &authorization_iface.CheckPermission{
+		&warehouse_models.WareExpenseAccount{}: &authorization_iface.CheckPermission{
 			DomainID: uint(payload.DomainId),
 			Actions:  []authorization_iface.Action{authorization_iface.Update},
 		},
@@ -165,10 +166,10 @@ func (w *warehouseFinImpl) ExpenseAccountGet(ctx context.Context, query *warehou
 
 // ExpenseAccountList implements warehouse_iface.WarehouseFinanceServiceServer.
 func (w *warehouseFinImpl) ExpenseAccountList(ctx context.Context, query *warehouse_iface.ExpenseAccountListReq) (*warehouse_iface.ExpenseAccountListRes, error) {
-	data := []*models.WareExpenseAccountWarehouse{}
+	data := []*warehouse_models.WareExpenseAccountWarehouse{}
 
 	db := w.db.WithContext(ctx)
-	sqlQuery := db.Model(&models.WareExpenseAccountWarehouse{}).
+	sqlQuery := db.Model(&warehouse_models.WareExpenseAccountWarehouse{}).
 		Joins("JOIN ware_expense_accounts ON ware_expense_accounts.id = ware_expense_account_warehouses.account_id")
 	if query.WarehouseId != 0 {
 		sqlQuery = sqlQuery.Where("ware_expense_account_warehouses.warehouse_id = ?", query.WarehouseId)
@@ -228,7 +229,7 @@ func (w *warehouseFinImpl) ExpenseHistoryAdd(ctx context.Context, payload *wareh
 
 		return histService.
 			Create(identity.From, &warehouse_mutations.CreateExpensePayload{
-				ExpenseType: models.ExpenseType(payload.ExpenseType),
+				ExpenseType: warehouse_models.ExpenseType(payload.ExpenseType),
 				At:          payload.At.AsTime(),
 				Amount:      payload.Amount,
 				Note:        payload.Note,
@@ -258,7 +259,7 @@ func (w *warehouseFinImpl) ExpenseHistoryEdit(ctx context.Context, payload *ware
 			Update(identity.From, &warehouse_mutations.UpdateWareExpenseHistPayload{
 				WarehouseID: uint(payload.WarehouseId),
 				AccountID:   uint(payload.AccountId),
-				ExpenseType: models.ExpenseType(payload.ExpenseType),
+				ExpenseType: warehouse_models.ExpenseType(payload.ExpenseType),
 				Amount:      payload.Amount,
 				At:          payload.At.AsTime(),
 				Note:        payload.Note,
@@ -276,7 +277,7 @@ func (w *warehouseFinImpl) ExpenseHistoryList(ctx context.Context, query *wareho
 	result := warehouse_iface.ExpenseHistoryListRes{}
 
 	db := w.db.WithContext(ctx)
-	sqlQuery := db.Model(&models.WareExpenseHistory{}).
+	sqlQuery := db.Model(&warehouse_models.WareExpenseHistory{}).
 		Joins("JOIN ware_expense_account_warehouses ON ware_expense_account_warehouses.account_id = ware_expense_histories.account_id AND ware_expense_account_warehouses.warehouse_id = ware_expense_histories").
 		Where("ware_expense_account_warehouses.is_ops_account = ?", query.IsOpsAccount)
 	if query.WarehouseId != 0 {
@@ -299,7 +300,7 @@ func (w *warehouseFinImpl) ExpenseHistoryList(ctx context.Context, query *wareho
 		sqlQuery = sqlQuery.Where("ware_expense_histories.created_at <= ?", endDay)
 	}
 
-	data := []*models.WareExpenseHistory{}
+	data := []*warehouse_models.WareExpenseHistory{}
 	err := sqlQuery.
 		Find(&data).Error
 	if err != nil {

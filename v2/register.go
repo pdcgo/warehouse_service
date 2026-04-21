@@ -21,6 +21,7 @@ func NewRegister(
 	auth authorization_iface.Authorization,
 	mux *http.ServeMux,
 	defaultInterceptor custom_connect.DefaultInterceptor,
+	pushHandler WarehousePushHttpHandler,
 	// cache ware_cache.Cache,
 	// dispather report.ReportDispatcher,
 ) RegisterHandler {
@@ -54,6 +55,8 @@ func NewRegister(
 		)
 		mux.Handle(path, handler)
 		grpcReflects = append(grpcReflects, warehouse_ifaceconnect.WarehouseServiceName)
+
+		mux.HandleFunc("/push", pushHandler)
 
 		return grpcReflects
 	}

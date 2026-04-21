@@ -9,7 +9,7 @@ import (
 	"github.com/pdcgo/shared/db_models"
 	"github.com/pdcgo/shared/pkg/moretest"
 	"github.com/pdcgo/shared/pkg/moretest/moretest_mock"
-	"github.com/pdcgo/warehouse_service/models"
+	"github.com/pdcgo/warehouse_service/warehouse_models"
 	"github.com/pdcgo/warehouse_service/warehouse_mutations"
 	"github.com/stretchr/testify/assert"
 	"gorm.io/gorm"
@@ -63,8 +63,8 @@ func TestWarehouseBalanceMutation(t *testing.T) {
 		return &accType
 	}
 
-	seedAccount := func(whID, accountType uint, name, numberID string) *models.WareExpenseAccountWarehouse {
-		account := models.WareExpenseAccount{
+	seedAccount := func(whID, accountType uint, name, numberID string) *warehouse_models.WareExpenseAccountWarehouse {
+		account := warehouse_models.WareExpenseAccount{
 			AccountTypeID: 1,
 			Name:          name,
 			NumberID:      numberID,
@@ -73,7 +73,7 @@ func TestWarehouseBalanceMutation(t *testing.T) {
 		err := db.Create(&account).Error
 		assert.Nil(t, err)
 
-		wareAccount := models.WareExpenseAccountWarehouse{
+		wareAccount := warehouse_models.WareExpenseAccountWarehouse{
 			AccountID:   account.ID,
 			WarehouseID: whID,
 			Account:     &account,
@@ -91,10 +91,10 @@ func TestWarehouseBalanceMutation(t *testing.T) {
 			moretest_mock.MockSqliteDatabase(&db),
 			func(t *testing.T) func() error {
 				err := db.AutoMigrate(
-					&models.WareExpenseAccount{},
-					&models.WareExpenseAccountWarehouse{},
-					&models.WareExpenseHistory{},
-					&models.WareBalanceAccountHistory{},
+					&warehouse_models.WareExpenseAccount{},
+					&warehouse_models.WareExpenseAccountWarehouse{},
+					&warehouse_models.WareExpenseHistory{},
+					&warehouse_models.WareBalanceAccountHistory{},
 					&db_models.Team{},
 					&db_models.User{},
 					&db_models.UserTeam{},
@@ -121,8 +121,8 @@ func TestWarehouseBalanceMutation(t *testing.T) {
 				assert.Nil(t, err)
 
 				t.Run("test check data", func(t *testing.T) {
-					data := models.WareBalanceAccountHistory{}
-					err := db.Model(&models.WareBalanceAccountHistory{}).Where("account_id = ?", account.ID).Find(&data).Error
+					data := warehouse_models.WareBalanceAccountHistory{}
+					err := db.Model(&warehouse_models.WareBalanceAccountHistory{}).Where("account_id = ?", account.ID).Find(&data).Error
 					assert.Nil(t, err)
 					assert.NotEmpty(t, data)
 				})
@@ -132,8 +132,8 @@ func TestWarehouseBalanceMutation(t *testing.T) {
 					assert.Nil(t, err)
 
 					t.Run("test check updated data", func(t *testing.T) {
-						data := []models.WareBalanceAccountHistory{}
-						err := db.Model(&models.WareBalanceAccountHistory{}).Where("account_id = ?", account.ID).Find(&data).Error
+						data := []warehouse_models.WareBalanceAccountHistory{}
+						err := db.Model(&warehouse_models.WareBalanceAccountHistory{}).Where("account_id = ?", account.ID).Find(&data).Error
 						assert.Nil(t, err)
 						assert.NotEmpty(t, data)
 						assert.Len(t, data, 1)

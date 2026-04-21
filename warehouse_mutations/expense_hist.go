@@ -6,7 +6,7 @@ import (
 
 	"github.com/pdcgo/shared/db_models"
 	"github.com/pdcgo/shared/interfaces/identity_iface"
-	"github.com/pdcgo/warehouse_service/models"
+	"github.com/pdcgo/warehouse_service/warehouse_models"
 	"github.com/pdcgo/warehouse_service/warehouse_query"
 	"gorm.io/gorm"
 )
@@ -19,9 +19,9 @@ func NewExpenseHistService(tx *gorm.DB, agent identity_iface.Agent) ExpenseHist 
 }
 
 type ExpenseHist interface {
-	GetAccount(accountID, warehouseID uint) (*models.WareExpenseAccountWarehouse, error)
+	GetAccount(accountID, warehouseID uint) (*warehouse_models.WareExpenseAccountWarehouse, error)
 	Create(from db_models.TeamType, payload *CreateExpensePayload) error
-	GetExpense(expenseHistID uint) (*models.WareExpenseHistory, error)
+	GetExpense(expenseHistID uint) (*warehouse_models.WareExpenseHistory, error)
 	Update(from db_models.TeamType, payload *UpdateWareExpenseHistPayload) error
 }
 
@@ -29,11 +29,11 @@ type expenseHistImpl struct {
 	tx    *gorm.DB
 	agent identity_iface.Agent
 
-	account *models.WareExpenseAccountWarehouse
-	data    *models.WareExpenseHistory
+	account *warehouse_models.WareExpenseAccountWarehouse
+	data    *warehouse_models.WareExpenseHistory
 }
 
-func (e *expenseHistImpl) GetAccount(accountID, warehouseID uint) (*models.WareExpenseAccountWarehouse, error) {
+func (e *expenseHistImpl) GetAccount(accountID, warehouseID uint) (*warehouse_models.WareExpenseAccountWarehouse, error) {
 
 	wareExpenseAccountQuery := warehouse_query.NewWarehouseExpenseAccountQuery(e.tx, false)
 
@@ -57,7 +57,7 @@ func (e *expenseHistImpl) GetAccount(accountID, warehouseID uint) (*models.WareE
 }
 
 type CreateExpensePayload struct {
-	ExpenseType models.ExpenseType
+	ExpenseType warehouse_models.ExpenseType
 	At          time.Time
 	Amount      float64
 	Note        string
@@ -68,12 +68,12 @@ func (e *expenseHistImpl) Create(from db_models.TeamType, payload *CreateExpense
 		return errors.New("account not initialized")
 	}
 	if from != db_models.AdminTeamType {
-		if !models.CanCreateExpense[from][payload.ExpenseType] {
+		if !warehouse_models.CanCreateExpense[from][payload.ExpenseType] {
 			return errors.New("not allowed create expense")
 		}
 	}
 
-	expense := models.WareExpenseHistory{
+	expense := warehouse_models.WareExpenseHistory{
 		WarehouseID: e.account.WarehouseID,
 		AccountID:   e.account.AccountID,
 		CreatedByID: e.agent.GetUserID(),
@@ -93,8 +93,8 @@ func (e *expenseHistImpl) Create(from db_models.TeamType, payload *CreateExpense
 	return nil
 }
 
-func (e *expenseHistImpl) GetExpense(expenseHistID uint) (*models.WareExpenseHistory, error) {
-	err := e.tx.Model(&models.WareExpenseHistory{}).
+func (e *expenseHistImpl) GetExpense(expenseHistID uint) (*warehouse_models.WareExpenseHistory, error) {
+	err := e.tx.Model(&warehouse_models.WareExpenseHistory{}).
 		Where("ware_expense_histories.id = ?", expenseHistID).
 		First(&e.data).Error
 	if err != nil {
@@ -105,13 +105,13 @@ func (e *expenseHistImpl) GetExpense(expenseHistID uint) (*models.WareExpenseHis
 }
 
 type UpdateWareExpenseHistPayload struct {
-	WarehouseID uint               `json:"warehouse_id"`
-	AccountID   uint               `json:"account_id"`
-	CreatedByID uint               `json:"created_by_id"`
-	ExpenseType models.ExpenseType `json:"expense_type"`
-	Amount      float64            `json:"amount"`
-	Note        string             `json:"note"`
-	At          time.Time          `json:"at"`
+	WarehouseID uint                         `json:"warehouse_id"`
+	AccountID   uint                         `json:"account_id"`
+	CreatedByID uint                         `json:"created_by_id"`
+	ExpenseType warehouse_models.ExpenseType `json:"expense_type"`
+	Amount      float64                      `json:"amount"`
+	Note        string                       `json:"note"`
+	At          time.Time                    `json:"at"`
 }
 
 func (e *expenseHistImpl) Update(from db_models.TeamType, payload *UpdateWareExpenseHistPayload) error {

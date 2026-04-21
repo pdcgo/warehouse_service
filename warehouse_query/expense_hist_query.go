@@ -3,13 +3,13 @@ package warehouse_query
 import (
 	"time"
 
-	"github.com/pdcgo/warehouse_service/models"
+	"github.com/pdcgo/warehouse_service/warehouse_models"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
 func NewWarehouseExpenseQuery(tx *gorm.DB, lock bool) WarehouseExpenseQuery {
-	sqlQuery := tx.Model(&models.WareExpenseHistory{})
+	sqlQuery := tx.Model(&warehouse_models.WareExpenseHistory{})
 	if lock {
 		sqlQuery = sqlQuery.Clauses(clause.Locking{
 			Strength: "UPDATE",
@@ -34,8 +34,8 @@ type WarehouseExpenseQuery interface {
 	FromWarehouse(warehouseID uint) WarehouseExpenseQuery
 	FromAccount(accountID uint) WarehouseExpenseQuery
 	CreatedBy(userID uint) WarehouseExpenseQuery
-	WithType(expenseType models.ExpenseType) WarehouseExpenseQuery
-	WithTypes(expenseTypes []models.ExpenseType) WarehouseExpenseQuery
+	WithType(expenseType warehouse_models.ExpenseType) WarehouseExpenseQuery
+	WithTypes(expenseTypes []warehouse_models.ExpenseType) WarehouseExpenseQuery
 	CreatedTime(timeMin, timeMax time.Time) WarehouseExpenseQuery
 	ExpenseAt(timeMin, timeMax time.Time) WarehouseExpenseQuery
 	FlowType(flowType FlowType) WarehouseExpenseQuery
@@ -99,13 +99,13 @@ func (w *warehouseExpenseQueryImpl) CreatedBy(userID uint) WarehouseExpenseQuery
 	return w
 }
 
-func (w *warehouseExpenseQueryImpl) WithType(expenseType models.ExpenseType) WarehouseExpenseQuery {
+func (w *warehouseExpenseQueryImpl) WithType(expenseType warehouse_models.ExpenseType) WarehouseExpenseQuery {
 	if expenseType != "" {
 		w.tx = w.tx.Where("ware_expense_histories.expense_type = ?", expenseType)
 	}
 	return w
 }
-func (w *warehouseExpenseQueryImpl) WithTypes(expenseTypes []models.ExpenseType) WarehouseExpenseQuery {
+func (w *warehouseExpenseQueryImpl) WithTypes(expenseTypes []warehouse_models.ExpenseType) WarehouseExpenseQuery {
 	if len(expenseTypes) != 0 {
 		w.tx = w.tx.Where("ware_expense_histories.expense_type IN (?)", expenseTypes)
 	}
