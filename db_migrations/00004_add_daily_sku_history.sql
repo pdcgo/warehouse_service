@@ -1,5 +1,6 @@
 -- +goose Up
 CREATE TABLE IF NOT EXISTS daily_sku_histories (
+    id                  BIGSERIAL       PRIMARY KEY,
     t                   TIMESTAMPTZ     NOT NULL,
     sku_id              VARCHAR(255)    NOT NULL,
     warehouse_id        BIGINT          NOT NULL,

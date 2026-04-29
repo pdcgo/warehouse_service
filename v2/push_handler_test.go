@@ -54,7 +54,7 @@ func TestPushHandler(t *testing.T) {
 		func(t *testing.T) {
 			var err error
 
-			handler := warehouse_service.NewWarehousePushHandler(&db)
+			handler := warehouse_service.NewWarehousePushHandler(&db, nil)
 
 			event := event_source_mock.NewMockEvent(t, &warehouse_iface.StockEvent{
 				Data: &warehouse_iface.StockEvent_StockChange{

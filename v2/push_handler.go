@@ -3,18 +3,22 @@ package warehouse_service
 import (
 	"context"
 	"net/http"
+	"time"
 
+	"buf.build/go/protovalidate"
 	"github.com/pdcgo/event_source"
 	"github.com/pdcgo/schema/services/warehouse_iface/v1"
 	"github.com/pdcgo/shared/db_models"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
 type WarehousePushHandler event_source.PushHandler
 
-func NewWarehousePushHandler(db *gorm.DB) WarehousePushHandler {
+func NewWarehousePushHandler(db *gorm.DB, eventSender event_source.EventSender) WarehousePushHandler {
+
 	return func(ctx context.Context, msg *event_source.PushRequest) error {
 		var err error
 
@@ -24,9 +28,36 @@ func NewWarehousePushHandler(db *gorm.DB) WarehousePushHandler {
 			return err
 		}
 
+		// validating message
+		err = protovalidate.GlobalValidator.Validate(&event)
+		if err != nil {
+			return err
+		}
+
 		db = db.WithContext(ctx)
 
 		switch eventData := event.Data.(type) {
+		case *warehouse_iface.StockEvent_RestockAccepted:
+			err = SendLog(ctx, db, eventSender, eventData.RestockAccepted.TransactionId, 1)
+			if err != nil {
+				return err
+			}
+		case *warehouse_iface.StockEvent_ReturnAccepted:
+			err = SendLog(ctx, db, eventSender, eventData.ReturnAccepted.TransactionId, 1)
+			if err != nil {
+				return err
+			}
+
+		case *warehouse_iface.StockEvent_OrderAccepted:
+			err = SendLog(ctx, db, eventSender, eventData.OrderAccepted.TransactionId, -1)
+			if err != nil {
+				return err
+			}
+		case *warehouse_iface.StockEvent_OrderCanceled:
+			err = SendLog(ctx, db, eventSender, eventData.OrderCanceled.TransactionId, 1)
+			if err != nil {
+				return err
+			}
 		case *warehouse_iface.StockEvent_StockChange:
 			stockChange := eventData.StockChange
 
@@ -132,4 +163,65 @@ type WarehousePushHttpHandler http.HandlerFunc
 
 func NewWarehousePushHttpHandler(handler WarehousePushHandler) WarehousePushHttpHandler {
 	return WarehousePushHttpHandler(event_source.NewMuxPushhandler(event_source.PushHandler(handler)))
+}
+
+func SendLog(ctx context.Context, db *gorm.DB, eventSender event_source.EventSender, txId uint64, n int) error {
+	var err error
+	var arrived time.Time
+
+	err = db.Raw(`
+				select arrived from inv_transactions it where it.id = ?
+			`, txId).
+		Find(&arrived).
+		Error
+	if err != nil {
+		return err
+	}
+
+	logs := []*warehouse_iface.StockChangeLog{}
+	err = db.
+		Raw(`
+					select
+						iti.sku_id,
+						it.warehouse_id,
+						it.verify_by_id as actor_id,
+						it.id as transaction_id,
+						iti.count - coalesce(iip.count, 0) as change_count,
+
+						it.arrived as at,
+						(
+							(iti.count - coalesce(iip.count, 0))
+							* (iti.price + coalesce(rc.per_piece_fee, 0))
+							* ?
+						) as change_amount
+
+					from inv_tx_items iti
+					join inv_transactions it on it.id = iti.inv_transaction_id
+					left join inv_item_problems iip on iip.tx_item_id = iti.id
+					left join restock_costs rc on rc.inv_transaction_id = iti.inv_transaction_id
+					where
+						iti.inv_transaction_id = ?
+				`,
+			n,
+			txId,
+		).
+		Find(&logs).
+		Error
+
+	if err != nil {
+		return err
+	}
+
+	_, err = eventSender(ctx, &warehouse_iface.StockEvent{
+		Data: &warehouse_iface.StockEvent_StockChange{
+			StockChange: &warehouse_iface.StockChange{
+				Changes:     logs,
+				CreatedTime: timestamppb.New(arrived),
+			},
+		},
+	})
+	if err != nil {
+		return err
+	}
+	return nil
 }

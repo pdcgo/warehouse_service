@@ -7,6 +7,7 @@
 package main
 
 import (
+	"github.com/pdcgo/event_source"
 	"github.com/pdcgo/shared/configs"
 	"github.com/pdcgo/shared/custom_connect"
 	"github.com/pdcgo/warehouse_service/v2"
@@ -34,7 +35,14 @@ func InitializeApp() (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	registerHandler := warehouse_service.NewRegister(db, authorization, serveMux, defaultInterceptor)
+	client, err := event_source.NewPubSubDefaultClient()
+	if err != nil {
+		return nil, err
+	}
+	eventSender := event_source.NewPubsubEventSender(client)
+	warehousePushHandler := warehouse_service.NewWarehousePushHandler(db, eventSender)
+	warehousePushHttpHandler := warehouse_service.NewWarehousePushHttpHandler(warehousePushHandler)
+	registerHandler := warehouse_service.NewRegister(db, authorization, serveMux, defaultInterceptor, warehousePushHttpHandler)
 	registerReflectFunc := custom_connect.NewRegisterReflect(serveMux)
 	app := NewApp(serveMux, registerHandler, registerReflectFunc)
 	return app, nil

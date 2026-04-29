@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/google/wire"
+	"github.com/pdcgo/event_source"
 	"github.com/pdcgo/shared/configs"
 	"github.com/pdcgo/shared/custom_connect"
 	"github.com/pdcgo/warehouse_service/v2"
@@ -21,7 +22,10 @@ func InitializeApp() (*App, error) {
 		NewDatabase,
 		NewCache,
 		NewAuthorization,
-
+		event_source.NewPubSubDefaultClient,
+		event_source.NewPubsubEventSender,
+		warehouse_service.NewWarehousePushHandler,
+		warehouse_service.NewWarehousePushHttpHandler,
 		warehouse_service.NewRegister,
 		NewApp,
 	)

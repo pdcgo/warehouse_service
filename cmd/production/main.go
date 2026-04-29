@@ -83,7 +83,10 @@ func NewApp(
 }
 
 func main() {
-	cloud_logging.SetCloudLoggingDefault()
+	if os.Getenv("DISABLE_CLOUD_LOGGING") == "" {
+		cloud_logging.SetCloudLoggingDefault()
+	}
+
 	app, err := InitializeApp()
 	if err != nil {
 		panic(err)
