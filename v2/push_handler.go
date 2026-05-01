@@ -2,6 +2,7 @@ package warehouse_service
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -38,23 +39,23 @@ func NewWarehousePushHandler(db *gorm.DB, eventSender event_source.EventSender) 
 
 		switch eventData := event.Data.(type) {
 		case *warehouse_iface.StockEvent_RestockAccepted:
-			err = SendLog(ctx, db, eventSender, eventData.RestockAccepted.TransactionId, 1)
+			err = SendLog(ctx, db, eventSender, eventData.RestockAccepted.TransactionId, 1, true)
 			if err != nil {
 				return err
 			}
 		case *warehouse_iface.StockEvent_ReturnAccepted:
-			err = SendLog(ctx, db, eventSender, eventData.ReturnAccepted.TransactionId, 1)
+			err = SendLog(ctx, db, eventSender, eventData.ReturnAccepted.TransactionId, 1, true)
 			if err != nil {
 				return err
 			}
 
 		case *warehouse_iface.StockEvent_OrderAccepted:
-			err = SendLog(ctx, db, eventSender, eventData.OrderAccepted.TransactionId, -1)
+			err = SendLog(ctx, db, eventSender, eventData.OrderAccepted.TransactionId, -1, false)
 			if err != nil {
 				return err
 			}
 		case *warehouse_iface.StockEvent_OrderCanceled:
-			err = SendLog(ctx, db, eventSender, eventData.OrderCanceled.TransactionId, 1)
+			err = SendLog(ctx, db, eventSender, eventData.OrderCanceled.TransactionId, 1, false)
 			if err != nil {
 				return err
 			}
@@ -62,59 +63,69 @@ func NewWarehousePushHandler(db *gorm.DB, eventSender event_source.EventSender) 
 			stockChange := eventData.StockChange
 
 			for _, log := range stockChange.Changes {
-				err = db.Transaction(func(tx *gorm.DB) error {
-					// locking sku
+				err = db.
+					Debug().
+					Transaction(func(tx *gorm.DB) error {
+						// locking sku
 
-					var sku db_models.Sku
-					err = tx.
-						Clauses(clause.Locking{Strength: "UPDATE"}).
-						Where("id = ?", log.SkuId).
-						First(&sku).
-						Error
-					if err != nil {
-						return err
-					}
+						var sku db_models.Sku
+						err = tx.
+							Clauses(clause.Locking{Strength: "UPDATE"}).
+							Where("id = ?", log.SkuId).
+							First(&sku).
+							Error
+						if err != nil {
+							return err
+						}
 
-					initCount := gorm.Expr(
-						`
-						select 
-							sum(ih.count * -1)
-						from invertory_histories ih 
-						where 
-							ih.tx_id is null
-							and ih.sku_id = ?
+						initCount := gorm.Expr(
+							`
+						with d as (
+							select 
+								sum(ih.count * -1) as count
+							from invertory_histories ih 
+							where 
+								ih.tx_id is null
+								and ih.sku_id = ?
+						)
+						
+						select coalesce(count, 0) from d
 						`,
-						sku.ID,
-					)
+							sku.ID,
+						)
 
-					initAmount := gorm.Expr(
-						`
-						select 
-							sum(
-								-1 * ih.count * (
-									ih.price + coalesce(ih.ext_price, 0)
-								)
-							)
-						from invertory_histories ih 
-						where 
-							ih.tx_id is null
-							and ih.sku_id = ?
+						initAmount := gorm.Expr(
+							`
+						with d as (
+							select 
+								sum(
+									-1 * ih.count * (
+										ih.price + coalesce(ih.ext_price, 0)
+									)
+								) as amount
+							from invertory_histories ih 
+							where 
+								ih.tx_id is null
+								and ih.sku_id = ?
+						)
+
+						select coalesce(amount, 0) from d
 						`,
-						sku.ID,
-					)
+							sku.ID,
+						)
 
-					params := map[string]interface{}{
-						"t":             stockChange.CreatedTime.AsTime(),
-						"sku_id":        log.SkuId,
-						"warehouse_id":  log.WarehouseId,
-						"init_count":    initCount,
-						"init_amount":   initAmount,
-						"change_count":  log.ChangeCount,
-						"change_amount": log.ChangeAmount,
-					}
+						params := map[string]interface{}{
+							"t":             stockChange.CreatedTime.AsTime(),
+							"sku_id":        log.SkuId,
+							"warehouse_id":  log.WarehouseId,
+							"init_count":    initCount,
+							"init_amount":   initAmount,
+							"change_count":  log.ChangeCount,
+							"change_amount": log.ChangeAmount,
+						}
 
-					err = tx.
-						Exec(`
+						err = tx.
+							Exec(`
 							insert into daily_sku_histories (
 								t, 
 								sku_id, 
@@ -122,16 +133,20 @@ func NewWarehousePushHandler(db *gorm.DB, eventSender event_source.EventSender) 
 								start_stock_count, 
 								end_stock_count, 
 								start_stock_amount, 
-								end_stock_amount
+								end_stock_amount,
+								diff_stock_count,
+								diff_stock_amount
 							)
 							values (
 								date_trunc('day', @t ::timestamptz), 
 								@sku_id, 
 								@warehouse_id, 
-								(@init_count), 
-								(@init_count), 
-								(@init_amount), 
-								(@init_amount)
+								(@init_count) - @change_count, 
+								(@init_count) + @change_count, 
+								(@init_amount) - @change_amount, 
+								(@init_amount) + @change_amount,
+								@change_count,
+								@change_amount
 							)
 							on conflict (t, sku_id, warehouse_id) do update
 							set 
@@ -140,14 +155,14 @@ func NewWarehousePushHandler(db *gorm.DB, eventSender event_source.EventSender) 
 								diff_stock_count = daily_sku_histories.diff_stock_count + @change_count,
 								diff_stock_amount = daily_sku_histories.diff_stock_amount + @change_amount
 						`, params).
-						Error
+							Error
 
-					if err != nil {
-						return err
-					}
+						if err != nil {
+							return err
+						}
 
-					return nil
-				})
+						return nil
+					})
 
 				if err != nil {
 					return err
@@ -165,46 +180,63 @@ func NewWarehousePushHttpHandler(handler WarehousePushHandler) WarehousePushHttp
 	return WarehousePushHttpHandler(event_source.NewMuxPushhandler(event_source.PushHandler(handler)))
 }
 
-func SendLog(ctx context.Context, db *gorm.DB, eventSender event_source.EventSender, txId uint64, n int) error {
+func SendLog(ctx context.Context, db *gorm.DB, eventSender event_source.EventSender, txId uint64, n int, timeArrived bool) error {
 	var err error
-	var arrived time.Time
+	var timetx time.Time
+	var atField, camount, actorField string
 
-	err = db.Raw(`
+	camount = `(
+				(iti.count - coalesce(iip.count, 0))
+				* (iti.price + coalesce(rc.per_piece_fee, 0))
+				* %d
+			) as change_amount`
+
+	if timeArrived {
+		err = db.Raw(`
 				select arrived from inv_transactions it where it.id = ?
 			`, txId).
-		Find(&arrived).
-		Error
+			Find(&timetx).
+			Error
+		atField = "it.arrived as at"
+		camount = fmt.Sprintf(camount, n)
+		actorField = "it.verify_by_id as actor_id"
+	} else {
+		err = db.Raw(`
+				select created from inv_transactions it where it.id = ?
+			`, txId).
+			Find(&timetx).
+			Error
+		atField = "it.created as at"
+		camount = fmt.Sprintf(camount, n)
+		actorField = "it.create_by_id as actor_id"
+	}
+
 	if err != nil {
 		return err
 	}
 
 	logs := []*warehouse_iface.StockChangeLog{}
+
+	logquery := db.
+		Select([]string{
+
+			"iti.sku_id",
+			"it.warehouse_id",
+			actorField,
+			atField,
+			"it.id as transaction_id",
+			"iti.count - coalesce(iip.count, 0) as change_count",
+			camount,
+		}).
+		Table("inv_tx_items iti").
+		Joins("join inv_transactions it on it.id = iti.inv_transaction_id").
+		Joins("left join inv_item_problems iip on iip.tx_item_id = iti.id").
+		Joins("left join restock_costs rc on rc.inv_transaction_id = iti.inv_transaction_id").
+		Where("iti.inv_transaction_id = ?", txId)
+
 	err = db.
-		Raw(`
-					select
-						iti.sku_id,
-						it.warehouse_id,
-						it.verify_by_id as actor_id,
-						it.id as transaction_id,
-						iti.count - coalesce(iip.count, 0) as change_count,
-
-						it.arrived as at,
-						(
-							(iti.count - coalesce(iip.count, 0))
-							* (iti.price + coalesce(rc.per_piece_fee, 0))
-							* ?
-						) as change_amount
-
-					from inv_tx_items iti
-					join inv_transactions it on it.id = iti.inv_transaction_id
-					left join inv_item_problems iip on iip.tx_item_id = iti.id
-					left join restock_costs rc on rc.inv_transaction_id = iti.inv_transaction_id
-					where
-						iti.inv_transaction_id = ?
-				`,
-			n,
-			txId,
-		).
+		Table("(?) as d", logquery).
+		Where("d.change_count != 0").
 		Find(&logs).
 		Error
 
@@ -216,7 +248,7 @@ func SendLog(ctx context.Context, db *gorm.DB, eventSender event_source.EventSen
 		Data: &warehouse_iface.StockEvent_StockChange{
 			StockChange: &warehouse_iface.StockChange{
 				Changes:     logs,
-				CreatedTime: timestamppb.New(arrived),
+				CreatedTime: timestamppb.New(timetx),
 			},
 		},
 	})

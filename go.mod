@@ -7,8 +7,8 @@ require (
 	connectrpc.com/connect v1.19.1
 	github.com/golang/protobuf v1.5.4
 	github.com/google/wire v0.7.0
-	github.com/pdcgo/event_source v1.0.3
-	github.com/pdcgo/schema v1.0.119
+	github.com/pdcgo/event_source v1.0.8
+	github.com/pdcgo/schema v1.0.120
 	github.com/pdcgo/shared v1.0.132
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/net v0.52.0
