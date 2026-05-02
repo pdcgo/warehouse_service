@@ -39,23 +39,23 @@ func NewWarehousePushHandler(db *gorm.DB, eventSender event_source.EventSender) 
 
 		switch eventData := event.Data.(type) {
 		case *warehouse_iface.StockEvent_RestockAccepted:
-			err = SendLog(ctx, db, eventSender, eventData.RestockAccepted.TransactionId, 1, true)
+			err = SendLog(ctx, db, eventSender, eventData.RestockAccepted.TransactionId, warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_RESTOCK_ACCEPTED)
 			if err != nil {
 				return err
 			}
 		case *warehouse_iface.StockEvent_ReturnAccepted:
-			err = SendLog(ctx, db, eventSender, eventData.ReturnAccepted.TransactionId, 1, true)
+			err = SendLog(ctx, db, eventSender, eventData.ReturnAccepted.TransactionId, warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_RETURN_ACCEPTED)
 			if err != nil {
 				return err
 			}
 
 		case *warehouse_iface.StockEvent_OrderAccepted:
-			err = SendLog(ctx, db, eventSender, eventData.OrderAccepted.TransactionId, -1, false)
+			err = SendLog(ctx, db, eventSender, eventData.OrderAccepted.TransactionId, warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_ORDER_ACCEPTED)
 			if err != nil {
 				return err
 			}
 		case *warehouse_iface.StockEvent_OrderCanceled:
-			err = SendLog(ctx, db, eventSender, eventData.OrderCanceled.TransactionId, 1, false)
+			err = SendLog(ctx, db, eventSender, eventData.OrderCanceled.TransactionId, warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_ORDER_CANCELED)
 			if err != nil {
 				return err
 			}
@@ -64,7 +64,7 @@ func NewWarehousePushHandler(db *gorm.DB, eventSender event_source.EventSender) 
 
 			for _, log := range stockChange.Changes {
 				err = db.
-					Debug().
+					// Debug().
 					Transaction(func(tx *gorm.DB) error {
 						// locking sku
 
@@ -142,9 +142,9 @@ func NewWarehousePushHandler(db *gorm.DB, eventSender event_source.EventSender) 
 								@sku_id, 
 								@warehouse_id, 
 								(@init_count) - @change_count, 
-								(@init_count) + @change_count, 
+								(@init_count), 
 								(@init_amount) - @change_amount, 
-								(@init_amount) + @change_amount,
+								(@init_amount),
 								@change_count,
 								@change_amount
 							)
@@ -180,16 +180,36 @@ func NewWarehousePushHttpHandler(handler WarehousePushHandler) WarehousePushHttp
 	return WarehousePushHttpHandler(event_source.NewMuxPushhandler(event_source.PushHandler(handler)))
 }
 
-func SendLog(ctx context.Context, db *gorm.DB, eventSender event_source.EventSender, txId uint64, n int, timeArrived bool) error {
+func SendLog(ctx context.Context, db *gorm.DB, eventSender event_source.EventSender, txId uint64, changeType warehouse_iface.StockChangeType) error {
 	var err error
 	var timetx time.Time
-	var atField, camount, actorField string
+	var atField, changeCountField, changeAmountField, actorField string
+	var timeArrived bool
+	var n int
 
-	camount = `(
+	switch changeType {
+	case warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_ORDER_ACCEPTED,
+		warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_STOCK_PROBLEM:
+		timeArrived = false
+		n = -1
+
+	case warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_RESTOCK_ACCEPTED,
+		warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_ORDER_CANCELED:
+		timeArrived = true
+		n = 1
+
+	}
+
+	changeAmountField = `(
 				(iti.count - coalesce(iip.count, 0))
 				* (iti.price + coalesce(rc.per_piece_fee, 0))
 				* %d
 			) as change_amount`
+
+	changeCountField = `
+				(iti.count - coalesce(iip.count, 0))
+				* %d as change_count
+			`
 
 	if timeArrived {
 		err = db.Raw(`
@@ -198,7 +218,7 @@ func SendLog(ctx context.Context, db *gorm.DB, eventSender event_source.EventSen
 			Find(&timetx).
 			Error
 		atField = "it.arrived as at"
-		camount = fmt.Sprintf(camount, n)
+
 		actorField = "it.verify_by_id as actor_id"
 	} else {
 		err = db.Raw(`
@@ -207,9 +227,11 @@ func SendLog(ctx context.Context, db *gorm.DB, eventSender event_source.EventSen
 			Find(&timetx).
 			Error
 		atField = "it.created as at"
-		camount = fmt.Sprintf(camount, n)
 		actorField = "it.create_by_id as actor_id"
 	}
+
+	changeCountField = fmt.Sprintf(changeCountField, n)
+	changeAmountField = fmt.Sprintf(changeAmountField, n)
 
 	if err != nil {
 		return err
@@ -225,8 +247,8 @@ func SendLog(ctx context.Context, db *gorm.DB, eventSender event_source.EventSen
 			actorField,
 			atField,
 			"it.id as transaction_id",
-			"iti.count - coalesce(iip.count, 0) as change_count",
-			camount,
+			changeCountField,
+			changeAmountField,
 		}).
 		Table("inv_tx_items iti").
 		Joins("join inv_transactions it on it.id = iti.inv_transaction_id").
@@ -242,6 +264,18 @@ func SendLog(ctx context.Context, db *gorm.DB, eventSender event_source.EventSen
 
 	if err != nil {
 		return err
+	}
+
+	for _, log := range logs {
+		log.TransactionAt = timestamppb.New(timetx)
+		log.Type = changeType
+
+		err = db.
+			Create(log).
+			Error
+		if err != nil {
+			return err
+		}
 	}
 
 	_, err = eventSender(ctx, &warehouse_iface.StockEvent{
