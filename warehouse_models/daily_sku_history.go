@@ -7,6 +7,7 @@ import (
 )
 
 type DailySkuHistory struct {
+	ID               uint64          `gorm:"column:id;primaryKey"`
 	T                time.Time       `gorm:"column:t;uniqueIndex:idx_daily_sku_histories_unique"`
 	SkuID            db_models.SkuID `gorm:"column:sku_id;uniqueIndex:idx_daily_sku_histories_unique"`
 	WarehouseID      uint64          `gorm:"column:warehouse_id;uniqueIndex:idx_daily_sku_histories_unique"`

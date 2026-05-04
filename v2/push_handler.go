@@ -266,6 +266,10 @@ func SendLog(ctx context.Context, db *gorm.DB, eventSender event_source.EventSen
 		return err
 	}
 
+	if len(logs) == 0 {
+		return nil
+	}
+
 	for _, log := range logs {
 		log.TransactionAt = timestamppb.New(timetx)
 		log.Type = changeType
