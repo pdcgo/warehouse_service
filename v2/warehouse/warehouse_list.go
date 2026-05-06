@@ -2,6 +2,7 @@ package warehouse
 
 import (
 	"context"
+	"strings"
 
 	"connectrpc.com/connect"
 	"github.com/pdcgo/schema/services/warehouse_iface/v1"
@@ -29,8 +30,15 @@ func (w *warehouseServiceImpl) WarehouseList(
 
 	db := w.db.WithContext(ctx)
 
-	err = db.
-		Model(&db_models.Warehouse{}).
+	query := db.
+		Model(&db_models.Warehouse{})
+
+	if req.Msg.Q != "" {
+		search := strings.ToLower(req.Msg.Q)
+		query = query.Where("name ilike ?", "%"+search+"%")
+	}
+
+	err = query.
 		Find(&result.List).
 		Error
 

@@ -11,9 +11,10 @@ import (
 	"github.com/pdcgo/shared/configs"
 	"github.com/pdcgo/shared/custom_connect"
 	"github.com/pdcgo/warehouse_service/v2"
+	"github.com/urfave/cli/v3"
 )
 
-func InitializeApp() (*App, error) {
+func InitializeApp() (*cli.Command, error) {
 	wire.Build(
 		http.NewServeMux,
 		configs.NewProductionConfig,
@@ -27,8 +28,10 @@ func InitializeApp() (*App, error) {
 		warehouse_service.NewWarehousePushHandler,
 		warehouse_service.NewWarehousePushHttpHandler,
 		warehouse_service.NewRegister,
+		NewServiceApi,
+		NewPrepareStat,
 		NewApp,
 	)
 
-	return &App{}, nil
+	return &cli.Command{}, nil
 }
