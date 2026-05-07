@@ -184,51 +184,94 @@ func SendLog(ctx context.Context, db *gorm.DB, eventSender event_source.EventSen
 	var err error
 	var timetx time.Time
 	var atField, changeCountField, changeAmountField, actorField string
-	var timeArrived bool
+
 	var n int
 
 	switch changeType {
 	case warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_ORDER_ACCEPTED,
 		warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_STOCK_PROBLEM:
-		timeArrived = false
+
 		n = -1
-
-	case warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_RESTOCK_ACCEPTED,
-		warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_ORDER_CANCELED:
-		timeArrived = true
-		n = 1
-
-	}
-
-	changeAmountField = `(
-				(iti.count - coalesce(iip.count, 0))
-				* (iti.price + coalesce(rc.per_piece_fee, 0))
-				* %d
-			) as change_amount`
-
-	changeCountField = `
-				(iti.count - coalesce(iip.count, 0))
-				* %d as change_count
-			`
-
-	if timeArrived {
-		err = db.Raw(`
-				select arrived from inv_transactions it where it.id = ?
-			`, txId).
-			Find(&timetx).
-			Error
-		atField = "it.arrived as at"
-
-		actorField = "it.verify_by_id as actor_id"
-	} else {
+		atField = "it.created as at"
+		actorField = "it.create_by_id as actor_id"
 		err = db.Raw(`
 				select created from inv_transactions it where it.id = ?
 			`, txId).
 			Find(&timetx).
 			Error
-		atField = "it.created as at"
-		actorField = "it.create_by_id as actor_id"
+
+		if err != nil {
+			return err
+		}
+
+	case warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_RESTOCK_ACCEPTED,
+		warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_RETURN_ACCEPTED:
+
+		n = 1
+		atField = "it.arrived as at"
+		actorField = "it.verify_by_id as actor_id"
+		err = db.Raw(`
+				select arrived from inv_transactions it where it.id = ?
+			`, txId).
+			Find(&timetx).
+			Error
+
+		if err != nil {
+			return err
+		}
+
+	case warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_ORDER_CANCELED:
+
+		n = 1
+		atField = `
+		(
+			select 
+				timestamp
+			from inv_timestamps ts
+			where 
+				ts.status = 'cancel'
+				and ts.tx_id = iti.inv_transaction_id
+		) as at
+		`
+		actorField = `
+		(
+			select 
+				user_id
+			from inv_timestamps ts
+			where 
+				ts.status = 'cancel'
+				and ts.tx_id = iti.inv_transaction_id
+		) as actor_id
+		`
+
+		err = db.Raw(`
+				select 
+					timestamp
+				from inv_timestamps ts
+				where 
+					ts.status = 'cancel'
+					and ts.tx_id = ?
+			`, txId).
+			Find(&timetx).
+			Error
+
+		if err != nil {
+			return err
+		}
 	}
+
+	changeAmountField = `
+			(
+				(iti.count - coalesce(iip.count, 0))
+				* (iti.price + coalesce(rc.per_piece_fee, 0))
+				* %d
+			) as change_amount
+	`
+
+	changeCountField = `
+				(iti.count - coalesce(iip.count, 0))
+				* %d as change_count
+			`
 
 	changeCountField = fmt.Sprintf(changeCountField, n)
 	changeAmountField = fmt.Sprintf(changeAmountField, n)

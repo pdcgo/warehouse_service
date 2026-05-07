@@ -39,7 +39,7 @@ func NewApp(
 		Name:   "Warehouse Service",
 		Action: cli.ActionFunc(serviceFunc),
 		Commands: []*cli.Command{
-			&cli.Command{
+			{
 				Name:   "prepare-stat",
 				Action: cli.ActionFunc(prepareStatFunc),
 			},
