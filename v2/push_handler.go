@@ -59,6 +59,41 @@ func NewWarehousePushHandler(db *gorm.DB, eventSender event_source.EventSender) 
 			if err != nil {
 				return err
 			}
+
+		case *warehouse_iface.StockEvent_TransferWarehouseCreated:
+
+			transfer, err := getTransfer(db, eventData.TransferWarehouseCreated.TransferId)
+			if err != nil {
+				return err
+			}
+
+			err = SendLog(ctx, db, eventSender, uint64(transfer.OutboundTxID), warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_TRANSFER_WAREHOUSE_OUT)
+			if err != nil {
+				return err
+			}
+
+		case *warehouse_iface.StockEvent_TransferWarehouseAccepted:
+			transfer, err := getTransfer(db, eventData.TransferWarehouseAccepted.TransferId)
+			if err != nil {
+				return err
+			}
+
+			err = SendLog(ctx, db, eventSender, uint64(transfer.InboundTxID), warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_TRANSFER_WAREHOUSE_IN)
+			if err != nil {
+				return err
+			}
+
+		case *warehouse_iface.StockEvent_TransferWarehouseCanceled:
+			transfer, err := getTransfer(db, eventData.TransferWarehouseCanceled.TransferId)
+			if err != nil {
+				return err
+			}
+
+			err = SendLog(ctx, db, eventSender, uint64(transfer.OutboundTxID), warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_TRANSFER_WAREHOUSE_OUT_CANCELED)
+			if err != nil {
+				return err
+			}
+
 		case *warehouse_iface.StockEvent_StockChange:
 			stockChange := eventData.StockChange
 
@@ -189,6 +224,8 @@ func SendLog(ctx context.Context, db *gorm.DB, eventSender event_source.EventSen
 
 	switch changeType {
 	case warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_ORDER_ACCEPTED,
+		warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_TRANSFER_WAREHOUSE_OUT,
+		warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_TRANSFER_WAREHOUSE_IN_CANCELED,
 		warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_STOCK_PROBLEM:
 
 		n = -1
@@ -205,7 +242,9 @@ func SendLog(ctx context.Context, db *gorm.DB, eventSender event_source.EventSen
 		}
 
 	case warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_RESTOCK_ACCEPTED,
-		warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_RETURN_ACCEPTED:
+		warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_RETURN_ACCEPTED,
+		warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_TRANSFER_WAREHOUSE_IN,
+		warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_TRANSFER_WAREHOUSE_OUT_CANCELED:
 
 		n = 1
 		atField = "it.arrived as at"
@@ -337,4 +376,18 @@ func SendLog(ctx context.Context, db *gorm.DB, eventSender event_source.EventSen
 		return err
 	}
 	return nil
+}
+
+func getTransfer(db *gorm.DB, transferId uint64) (*db_models.WarehouseTransfer, error) {
+	res := db_models.WarehouseTransfer{}
+	err := db.
+		Model(&db_models.WarehouseTransfer{}).
+		First(&res, transferId).
+		Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &res, nil
 }
