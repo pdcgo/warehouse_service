@@ -68,6 +68,7 @@ func TestPushIntegrity(t *testing.T) {
 							Changes: []*warehouse_iface.StockChangeLog{
 								{
 									SkuId:         "11111111",
+									ExternalMsgId: "asc",
 									WarehouseId:   1,
 									ChangeCount:   -1,
 									ChangeAmount:  -1000,
@@ -253,6 +254,7 @@ func TestPushHandler(t *testing.T) {
 									Changes: []*warehouse_iface.StockChangeLog{
 										{
 											SkuId:         "11111111",
+											ExternalMsgId: "abc",
 											WarehouseId:   1,
 											ChangeCount:   1,
 											ChangeAmount:  100,

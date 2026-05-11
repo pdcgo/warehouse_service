@@ -14,7 +14,7 @@ type StockChangeLog struct {
 	ActorID       int64                           `db:"actor_id"`
 	TransactionID int64                           `db:"transaction_id"`
 	ChangeCount   int32                           `db:"change_count"`
-	ChangeAmount  float64                         `db:"change_amount"`
+	ChangeAmount  float64                         `db:"change_amount" gorm:"uniqueIndex:idx_sku_external"`
 	TransactionAt time.Time                       `db:"transaction_at"`
 	Type          warehouse_iface.StockChangeType `db:"type"`
 	CreatedAt     time.Time                       `db:"created_at"`
