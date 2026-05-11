@@ -8,7 +8,8 @@ import (
 
 type StockChangeLog struct {
 	ID            int64                           `db:"id"`
-	SkuID         string                          `db:"sku_id"`
+	SkuID         string                          `db:"sku_id" gorm:"uniqueIndex:idx_sku_external"`
+	ExternalMsgId string                          `db:"external_msg_id" gorm:"uniqueIndex:idx_sku_external"`
 	WarehouseID   int64                           `db:"warehouse_id"`
 	ActorID       int64                           `db:"actor_id"`
 	TransactionID int64                           `db:"transaction_id"`

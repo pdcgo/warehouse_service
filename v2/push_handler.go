@@ -39,23 +39,23 @@ func NewWarehousePushHandler(db *gorm.DB, eventSender event_source.EventSender) 
 
 		switch eventData := event.Data.(type) {
 		case *warehouse_iface.StockEvent_RestockAccepted:
-			err = SendLog(ctx, db, eventSender, eventData.RestockAccepted.TransactionId, warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_RESTOCK_ACCEPTED)
+			err = SendLog(ctx, db, eventSender, msg.Message.MessageID, eventData.RestockAccepted.TransactionId, warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_RESTOCK_ACCEPTED)
 			if err != nil {
 				return err
 			}
 		case *warehouse_iface.StockEvent_ReturnAccepted:
-			err = SendLog(ctx, db, eventSender, eventData.ReturnAccepted.TransactionId, warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_RETURN_ACCEPTED)
+			err = SendLog(ctx, db, eventSender, msg.Message.MessageID, eventData.ReturnAccepted.TransactionId, warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_RETURN_ACCEPTED)
 			if err != nil {
 				return err
 			}
 
 		case *warehouse_iface.StockEvent_OrderAccepted:
-			err = SendLog(ctx, db, eventSender, eventData.OrderAccepted.TransactionId, warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_ORDER_ACCEPTED)
+			err = SendLog(ctx, db, eventSender, msg.Message.MessageID, eventData.OrderAccepted.TransactionId, warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_ORDER_ACCEPTED)
 			if err != nil {
 				return err
 			}
 		case *warehouse_iface.StockEvent_OrderCanceled:
-			err = SendLog(ctx, db, eventSender, eventData.OrderCanceled.TransactionId, warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_ORDER_CANCELED)
+			err = SendLog(ctx, db, eventSender, msg.Message.MessageID, eventData.OrderCanceled.TransactionId, warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_ORDER_CANCELED)
 			if err != nil {
 				return err
 			}
@@ -67,7 +67,7 @@ func NewWarehousePushHandler(db *gorm.DB, eventSender event_source.EventSender) 
 				return err
 			}
 
-			err = SendLog(ctx, db, eventSender, uint64(transfer.OutboundTxID), warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_TRANSFER_WAREHOUSE_OUT)
+			err = SendLog(ctx, db, eventSender, msg.Message.MessageID, uint64(transfer.OutboundTxID), warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_TRANSFER_WAREHOUSE_OUT)
 			if err != nil {
 				return err
 			}
@@ -78,7 +78,7 @@ func NewWarehousePushHandler(db *gorm.DB, eventSender event_source.EventSender) 
 				return err
 			}
 
-			err = SendLog(ctx, db, eventSender, uint64(transfer.InboundTxID), warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_TRANSFER_WAREHOUSE_IN)
+			err = SendLog(ctx, db, eventSender, msg.Message.MessageID, uint64(transfer.InboundTxID), warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_TRANSFER_WAREHOUSE_IN)
 			if err != nil {
 				return err
 			}
@@ -89,7 +89,7 @@ func NewWarehousePushHandler(db *gorm.DB, eventSender event_source.EventSender) 
 				return err
 			}
 
-			err = SendLog(ctx, db, eventSender, uint64(transfer.OutboundTxID), warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_TRANSFER_WAREHOUSE_OUT_CANCELED)
+			err = SendLog(ctx, db, eventSender, msg.Message.MessageID, uint64(transfer.OutboundTxID), warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_TRANSFER_WAREHOUSE_OUT_CANCELED)
 			if err != nil {
 				return err
 			}
@@ -215,7 +215,7 @@ func NewWarehousePushHttpHandler(handler WarehousePushHandler) WarehousePushHttp
 	return WarehousePushHttpHandler(event_source.NewMuxPushhandler(event_source.PushHandler(handler)))
 }
 
-func SendLog(ctx context.Context, db *gorm.DB, eventSender event_source.EventSender, txId uint64, changeType warehouse_iface.StockChangeType) error {
+func SendLog(ctx context.Context, db *gorm.DB, eventSender event_source.EventSender, externalMsgId string, txId uint64, changeType warehouse_iface.StockChangeType) error {
 	var err error
 	var timetx time.Time
 	var atField, changeCountField, changeAmountField, actorField string
@@ -352,22 +352,34 @@ func SendLog(ctx context.Context, db *gorm.DB, eventSender event_source.EventSen
 		return nil
 	}
 
+	sendedLog := []*warehouse_iface.StockChangeLog{}
+
 	for _, log := range logs {
 		log.TransactionAt = timestamppb.New(timetx)
 		log.Type = changeType
+		log.ExternalMsgId = externalMsgId
 
-		err = db.
-			Create(log).
-			Error
+		res := db.
+			Clauses(clause.OnConflict{DoNothing: true}).
+			Create(log)
+
+		err = res.Error
 		if err != nil {
 			return err
 		}
+
+		if res.RowsAffected == 0 {
+			continue
+		}
+
+		sendedLog = append(sendedLog, log)
+
 	}
 
 	_, err = eventSender(ctx, &warehouse_iface.StockEvent{
 		Data: &warehouse_iface.StockEvent_StockChange{
 			StockChange: &warehouse_iface.StockChange{
-				Changes:     logs,
+				Changes:     sendedLog,
 				CreatedTime: timestamppb.New(timetx),
 			},
 		},
