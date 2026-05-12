@@ -376,6 +376,10 @@ func SendLog(ctx context.Context, db *gorm.DB, eventSender event_source.EventSen
 
 	}
 
+	if len(sendedLog) == 0 {
+		return nil
+	}
+
 	_, err = eventSender(ctx, &warehouse_iface.StockEvent{
 		Data: &warehouse_iface.StockEvent_StockChange{
 			StockChange: &warehouse_iface.StockChange{

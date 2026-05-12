@@ -110,8 +110,8 @@ func TestChangeLogIntegrity(t *testing.T) {
 					)
 
 					assert.Nil(t, err)
-					assert.NotNil(t, stockChange)
-					assert.Len(t, stockChange.Changes, 0)
+					assert.Nil(t, stockChange)
+					// assert.Len(t, stockChange.Changes, 0)
 
 				})
 
