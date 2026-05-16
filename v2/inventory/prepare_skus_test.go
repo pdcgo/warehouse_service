@@ -56,6 +56,17 @@ func TestPrepareSkus(t *testing.T) {
 
 				assert.NoError(t, err)
 
+				// t.Run("testing day value", func(t *testing.T) {
+				// 	hists := []warehouse_models.DailySkuHistory{}
+				// 	err = tx.Find(&hists).Error
+				// 	assert.NoError(t, err)
+				// 	assert.Equal(t, int64(0), hists[0].EndStockCount)
+				// 	assert.Equal(t, int64(0), hists[0].StartStockCount)
+				// 	assert.Equal(t, float64(0), hists[0].EndStockAmount)
+				// 	assert.Equal(t, float64(0), hists[0].StartStockAmount)
+				// 	assert.Equal(t, "", hists[0].T.String())
+				// })
+
 				t.Run("testing running kedua", func(t *testing.T) {
 
 					_, err = service.PrepareSkus(t.Context(), &connect.Request[warehouse_iface.PrepareSkusRequest]{

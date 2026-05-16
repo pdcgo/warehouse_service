@@ -34,6 +34,7 @@ func TestPushIntegrity(t *testing.T) {
 						&db_models.Sku{},
 						&warehouse_models.DailySkuHistory{},
 						&db_models.InvertoryHistory{},
+						&warehouse_models.StockEventLog{},
 					)
 					assert.NoError(t, err)
 
@@ -113,88 +114,6 @@ func TestPushIntegrity(t *testing.T) {
 				})
 			})
 
-			// dbScenario(t, func(tx *gorm.DB) {
-			// 	var migrate moretest.SetupFunc = func(t *testing.T) func() error {
-			// 		err := tx.AutoMigrate(
-			// 			&db_models.Sku{},
-			// 			&warehouse_models.DailySkuHistory{},
-			// 			&db_models.InvertoryHistory{},
-			// 		)
-			// 		assert.NoError(t, err)
-
-			// 		return nil
-			// 	}
-			// 	var seed moretest.SetupFunc = func(t *testing.T) func() error {
-			// 		err := tx.
-			// 			Save(&db_models.Sku{
-			// 				ID:           "11111111",
-			// 				VariantID:    1,
-			// 				TeamID:       1,
-			// 				ProductID:    1,
-			// 				WarehouseID:  1,
-			// 				StockReady:   0,
-			// 				StockPending: 0,
-			// 				StockTotal:   0,
-			// 			}).
-			// 			Error
-			// 		assert.NoError(t, err)
-
-			// 		return nil
-			// 	}
-			// 	migrate(t)
-			// 	seed(t)
-			// 	handler := warehouse_service.NewWarehousePushHandler(tx, event_source.EmptySender)
-
-			// 	event := event_source_mock.NewMockEvent(t, &warehouse_iface.StockEvent{
-			// 		Data: &warehouse_iface.StockEvent_StockChange{
-			// 			StockChange: &warehouse_iface.StockChange{
-			// 				CreatedTime: timestamppb.Now(),
-			// 				Changes: []*warehouse_iface.StockChangeLog{
-			// 					{
-			// 						SkuId:         "11111111",
-			// 						WarehouseId:   1,
-			// 						ChangeCount:   2,
-			// 						ChangeAmount:  2000,
-			// 						ActorId:       1,
-			// 						TransactionId: 1,
-			// 					},
-			// 				},
-			// 			},
-			// 		},
-			// 	})
-
-			// 	err = handler(t.Context(), event)
-			// 	assert.NoError(t, err)
-
-			// 	t.Run("check value", func(t *testing.T) {
-			// 		t.Run("history must one", func(t *testing.T) {
-			// 			var histories []warehouse_models.DailySkuHistory
-			// 			err = tx.Model(warehouse_models.DailySkuHistory{}).Where("sku_id = ?", "11111111").Find(&histories).Error
-			// 			assert.NoError(t, err)
-
-			// 			assert.Len(t, histories, 1)
-			// 		})
-
-			// 		history := warehouse_models.DailySkuHistory{}
-			// 		err = tx.Model(history).Where("sku_id = ?", "11111111").First(&history).Error
-			// 		assert.NoError(t, err)
-
-			// 		assert.Equal(t, int64(0), history.EndStockCount)
-			// 		assert.Equal(t, float64(0), history.EndStockAmount)
-			// 		assert.Equal(t, int64(-1), history.DiffStockCount)
-			// 		assert.Equal(t, float64(-1000), history.DiffStockAmount)
-
-			// 		assert.Equal(t, int64(1), history.StartStockCount)
-			// 		assert.Equal(t, float64(1000), history.StartStockAmount)
-
-			// 		assert.Equal(t, history.DiffStockAmount, history.EndStockAmount-history.StartStockAmount)
-			// 		assert.Equal(t, history.DiffStockCount, history.EndStockCount-history.StartStockCount)
-
-			// 		debugtool.LogJson(history)
-
-			// 	})
-			// })
-
 		},
 	)
 }
@@ -213,6 +132,7 @@ func TestPushHandler(t *testing.T) {
 					err := tx.AutoMigrate(
 						&db_models.Sku{},
 						&warehouse_models.DailySkuHistory{},
+						&warehouse_models.StockEventLog{},
 						&db_models.InvertoryHistory{},
 					)
 					assert.NoError(t, err)

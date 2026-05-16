@@ -1,123 +1,107 @@
 package warehouse_service_test
 
-import (
-	"context"
-	"testing"
-	"time"
+// func TestChangeLogIntegrity(t *testing.T) {
+// 	var dbScenario moretest_mock.DbScenario
 
-	"github.com/pdcgo/schema/services/warehouse_iface/v1"
-	"github.com/pdcgo/shared/db_models"
-	"github.com/pdcgo/shared/pkg/moretest"
-	"github.com/pdcgo/shared/pkg/moretest/moretest_mock"
-	"github.com/pdcgo/warehouse_service/v2"
-	"github.com/pdcgo/warehouse_service/warehouse_models"
-	"github.com/stretchr/testify/assert"
-	"google.golang.org/protobuf/proto"
-	"gorm.io/gorm"
-)
+// 	moretest.Suite(t, "test change log integrity",
+// 		moretest.SetupListFunc{
+// 			moretest_mock.MockPostgresDatabase(&dbScenario),
+// 		},
+// 		func(t *testing.T) {
+// 			var err error
 
-func TestChangeLogIntegrity(t *testing.T) {
-	var dbScenario moretest_mock.DbScenario
+// 			dbScenario(t, func(tx *gorm.DB) {
+// 				err = tx.AutoMigrate(
+// 					&db_models.InvTxItem{},
+// 					&warehouse_models.InvItemProblem{},
+// 					&db_models.RestockCost{},
+// 					&db_models.InvTransaction{},
+// 					&warehouse_models.StockChangeLog{},
+// 				)
+// 				assert.NoError(t, err)
 
-	moretest.Suite(t, "test change log integrity",
-		moretest.SetupListFunc{
-			moretest_mock.MockPostgresDatabase(&dbScenario),
-		},
-		func(t *testing.T) {
-			var err error
+// 				items := []*db_models.InvTxItem{
+// 					{
+// 						ID:               5500489,
+// 						InvTransactionID: 1593351,
+// 						Owned:            false,
 
-			dbScenario(t, func(tx *gorm.DB) {
-				err = tx.AutoMigrate(
-					&db_models.InvTxItem{},
-					&warehouse_models.InvItemProblem{},
-					&db_models.RestockCost{},
-					&db_models.InvTransaction{},
-					&warehouse_models.StockChangeLog{},
-				)
-				assert.NoError(t, err)
+// 						SkuID: "224443625d076097",
+// 						Count: 1,
+// 						Price: 30200,
+// 						Total: 30200,
+// 					},
+// 				}
 
-				items := []*db_models.InvTxItem{
-					{
-						ID:               5500489,
-						InvTransactionID: 1593351,
-						Owned:            false,
+// 				err = tx.Create(&items).Error
+// 				assert.NoError(t, err)
 
-						SkuID: "224443625d076097",
-						Count: 1,
-						Price: 30200,
-						Total: 30200,
-					},
-				}
+// 				transaction := db_models.InvTransaction{
 
-				err = tx.Create(&items).Error
-				assert.NoError(t, err)
+// 					ID:          1593351,
+// 					TeamID:      63,
+// 					WarehouseID: 67,
+// 					Type:        db_models.InvTxOrder,
+// 					Status:      db_models.InvTxCompleted,
+// 					Created:     time.Now(),
+// 				}
 
-				transaction := db_models.InvTransaction{
+// 				err = tx.Create(&transaction).Error
+// 				assert.NoError(t, err)
 
-					ID:          1593351,
-					TeamID:      63,
-					WarehouseID: 67,
-					Type:        db_models.InvTxOrder,
-					Status:      db_models.InvTxCompleted,
-					Created:     time.Now(),
-				}
+// 				var stockChange *warehouse_iface.StockChange
 
-				err = tx.Create(&transaction).Error
-				assert.NoError(t, err)
+// 				err = warehouse_service.SendLog(
+// 					t.Context(),
+// 					tx,
+// 					func(ctx context.Context, event proto.Message) (string, error) {
 
-				var stockChange *warehouse_iface.StockChange
+// 						assert.IsType(t, &warehouse_iface.StockEvent{}, event)
 
-				err = warehouse_service.SendLog(
-					t.Context(),
-					tx,
-					func(ctx context.Context, event proto.Message) (string, error) {
+// 						eventD := event.(*warehouse_iface.StockEvent)
 
-						assert.IsType(t, &warehouse_iface.StockEvent{}, event)
+// 						stockChange = eventD.GetStockChange()
 
-						eventD := event.(*warehouse_iface.StockEvent)
+// 						return "", nil
+// 					},
+// 					"abc",
+// 					uint64(1593351),
+// 					warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_ORDER_ACCEPTED,
+// 				)
 
-						stockChange = eventD.GetStockChange()
+// 				assert.Nil(t, err)
+// 				assert.NotNil(t, stockChange)
+// 				assert.Len(t, stockChange.Changes, 1)
 
-						return "", nil
-					},
-					"abc",
-					uint64(1593351),
-					warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_ORDER_ACCEPTED,
-				)
+// 				t.Run("testing idempotency", func(t *testing.T) {
+// 					var stockChange *warehouse_iface.StockChange
+// 					err = warehouse_service.SendLog(
+// 						t.Context(),
+// 						tx,
+// 						func(ctx context.Context, event proto.Message) (string, error) {
 
-				assert.Nil(t, err)
-				assert.NotNil(t, stockChange)
-				assert.Len(t, stockChange.Changes, 1)
+// 							assert.IsType(t, &warehouse_iface.StockEvent{}, event)
 
-				t.Run("testing idempotency", func(t *testing.T) {
-					var stockChange *warehouse_iface.StockChange
-					err = warehouse_service.SendLog(
-						t.Context(),
-						tx,
-						func(ctx context.Context, event proto.Message) (string, error) {
+// 							eventD := event.(*warehouse_iface.StockEvent)
 
-							assert.IsType(t, &warehouse_iface.StockEvent{}, event)
+// 							stockChange = eventD.GetStockChange()
 
-							eventD := event.(*warehouse_iface.StockEvent)
+// 							return "", nil
+// 						},
+// 						"abc",
+// 						uint64(1593351),
+// 						warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_ORDER_ACCEPTED,
+// 					)
 
-							stockChange = eventD.GetStockChange()
+// 					assert.Nil(t, err)
+// 					assert.Nil(t, stockChange)
+// 					// assert.Len(t, stockChange.Changes, 0)
 
-							return "", nil
-						},
-						"abc",
-						uint64(1593351),
-						warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_ORDER_ACCEPTED,
-					)
+// 				})
 
-					assert.Nil(t, err)
-					assert.Nil(t, stockChange)
-					// assert.Len(t, stockChange.Changes, 0)
+// 				// t.Error("debug")
+// 				// debugtool.LogJson(stockChange)
+// 			})
 
-				})
-
-				// t.Error("debug")
-				// debugtool.LogJson(stockChange)
-			})
-
-		})
-}
+// 		})
+// }

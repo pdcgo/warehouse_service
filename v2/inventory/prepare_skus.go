@@ -106,7 +106,7 @@ func (i *inventoryServiceImpl) PrepareSkus(
 						end_stock_amount
 					)
 					values (
-						date_trunc('day', @t ::timestamptz), 
+						date_trunc('day', @t ::timestamptz AT TIME ZONE 'Asia/Jakarta'), 
 						@sku_id, 
 						@warehouse_id, 
 						(@init_count), 
