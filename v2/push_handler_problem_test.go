@@ -5,7 +5,6 @@ import (
 
 	"github.com/pdcgo/schema/services/warehouse_iface/v1"
 	"github.com/pdcgo/shared/db_models"
-	"github.com/pdcgo/shared/pkg/debugtool"
 	"github.com/pdcgo/shared/pkg/moretest"
 	"github.com/pdcgo/shared/pkg/moretest/moretest_mock"
 	"github.com/pdcgo/warehouse_service/v2"
@@ -54,8 +53,6 @@ func TestProblem(t *testing.T) {
 				event, err := warehouse_service.CreateStockChangeLog(tx, "test", 1605229, warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_STOCK_PROBLEM)
 				assert.Nil(t, err)
 				assert.NotNil(t, event)
-				t.Error("asdasd")
-				debugtool.LogJson(event)
 
 			})
 		},
