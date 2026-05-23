@@ -35,6 +35,7 @@ func TestPushIntegrity(t *testing.T) {
 						&warehouse_models.DailySkuHistory{},
 						&db_models.InvertoryHistory{},
 						&warehouse_models.StockEventLog{},
+						&warehouse_models.StockChangeLog{},
 					)
 					assert.NoError(t, err)
 
@@ -133,6 +134,7 @@ func TestPushHandler(t *testing.T) {
 						&db_models.Sku{},
 						&warehouse_models.DailySkuHistory{},
 						&warehouse_models.StockEventLog{},
+						&warehouse_models.StockChangeLog{},
 						&db_models.InvertoryHistory{},
 					)
 					assert.NoError(t, err)

@@ -14,6 +14,11 @@ type inboundServiceImpl struct {
 	auth authorization_iface.Authorization
 }
 
+// InboundList implements [warehouse_ifaceconnect.InboundServiceHandler].
+func (i *inboundServiceImpl) InboundList(context.Context, *connect.Request[warehouse_iface.InboundListRequest]) (*connect.Response[warehouse_iface.InboundListResponse], error) {
+	panic("unimplemented")
+}
+
 // InboundCancel implements warehouse_ifaceconnect.InboundServiceHandler.
 func (i *inboundServiceImpl) InboundCancel(context.Context, *connect.Request[warehouse_iface.InboundCancelRequest]) (*connect.Response[warehouse_iface.InboundCancelResponse], error) {
 	panic("unimplemented")

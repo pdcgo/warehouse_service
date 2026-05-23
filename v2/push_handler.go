@@ -30,7 +30,7 @@ func (e *EventUnuportedErr) Error() string {
 
 type WarehousePushHandler event_source.PushHandler
 
-func NewWarehousePushHandler(dbx *gorm.DB, eventSender event_source.EventSender) WarehousePushHandler {
+func NewWarehousePushHandler(db *gorm.DB, eventSender event_source.EventSender) WarehousePushHandler {
 
 	return func(ctx context.Context, msg *event_source.PushRequest) error {
 		var err error
@@ -49,7 +49,7 @@ func NewWarehousePushHandler(dbx *gorm.DB, eventSender event_source.EventSender)
 
 		messageID := msg.Message.MessageID
 
-		return dbx.Transaction(func(tx *gorm.DB) error {
+		return db.Transaction(func(tx *gorm.DB) error {
 			handler := common_helper.NewChainParam(
 				func(next common_helper.NextFuncParam[*warehouse_iface.StockEvent]) common_helper.NextFuncParam[*warehouse_iface.StockEvent] {
 					return func(event *warehouse_iface.StockEvent) (*warehouse_iface.StockEvent, error) { // deduplicate event
@@ -78,6 +78,7 @@ func NewWarehousePushHandler(dbx *gorm.DB, eventSender event_source.EventSender)
 
 						switch eventData := event.Data.(type) {
 						case *warehouse_iface.StockEvent_RestockAccepted:
+							tx = tx.Debug()
 							changeEvent, err = CreateStockChangeLog(tx, msg.Message.MessageID, eventData.RestockAccepted.TransactionId, warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_RESTOCK_ACCEPTED)
 
 						case *warehouse_iface.StockEvent_ReturnAccepted:
@@ -133,7 +134,7 @@ func NewWarehousePushHandler(dbx *gorm.DB, eventSender event_source.EventSender)
 
 				},
 				func(next common_helper.NextFuncParam[*warehouse_iface.StockEvent]) common_helper.NextFuncParam[*warehouse_iface.StockEvent] {
-					return func(event *warehouse_iface.StockEvent) (*warehouse_iface.StockEvent, error) {
+					return func(event *warehouse_iface.StockEvent) (*warehouse_iface.StockEvent, error) { // insert to stock log
 						if event == nil {
 							slog.Warn("skipping event nil", "event", event)
 							return nil, nil
@@ -143,6 +144,33 @@ func NewWarehousePushHandler(dbx *gorm.DB, eventSender event_source.EventSender)
 							slog.Warn("skipping event data nil", "event", event)
 							return nil, nil
 						}
+
+						switch eventData := event.Data.(type) {
+						case *warehouse_iface.StockEvent_StockChange:
+
+							stockChange := eventData.StockChange
+
+							for _, log := range stockChange.Changes {
+
+								err := tx.
+									Clauses(clause.OnConflict{DoNothing: true}).
+									Create(log).
+									Error
+
+								if err != nil {
+									return event, err
+								}
+							}
+
+							return next(event)
+						default:
+							slog.Warn("unsupported event", "event", eventData)
+							return nil, &EventUnuportedErr{StockEvent: event}
+						}
+					}
+				},
+				func(next common_helper.NextFuncParam[*warehouse_iface.StockEvent]) common_helper.NextFuncParam[*warehouse_iface.StockEvent] {
+					return func(event *warehouse_iface.StockEvent) (*warehouse_iface.StockEvent, error) { // updating to daily sku histories, insert daily stock and sum
 
 						switch eventData := event.Data.(type) {
 						case *warehouse_iface.StockEvent_StockChange:
@@ -429,32 +457,24 @@ func CreateStockChangeLog(
 	}
 
 	if len(logs) == 0 {
-		return nil, fmt.Errorf("%d logs empty", txId)
+		switch changeType {
+		case warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_RESTOCK_ACCEPTED,
+			warehouse_iface.StockChangeType_STOCK_CHANGE_TYPE_RETURN_ACCEPTED:
+			return nil, nil
+		default:
+			return nil, fmt.Errorf("%d logs empty", txId)
+		}
+
 	}
 
 	// sendedLog := []*warehouse_iface.StockChangeLog{}
 
-	// for _, log := range logs {
-	// 	log.TransactionAt = timestamppb.New(timetx)
-	// 	log.Type = changeType
-	// 	log.ExternalMsgId = externalMsgId
+	for _, log := range logs {
+		log.TransactionAt = timestamppb.New(timetx)
+		log.Type = changeType
+		log.ExternalMsgId = externalMsgId
 
-	// 	res := db.
-	// 		Clauses(clause.OnConflict{DoNothing: true}).
-	// 		Create(log)
-
-	// 	err = res.Error
-	// 	if err != nil {
-	// 		return err
-	// 	}
-
-	// 	if res.RowsAffected == 0 {
-	// 		continue
-	// 	}
-
-	// 	sendedLog = append(sendedLog, log)
-
-	// }
+	}
 
 	// if len(sendedLog) == 0 {
 	// 	return nil
