@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 
+	"github.com/pdcgo/san_collection/san_caches"
 	"github.com/pdcgo/shared/authorization"
 	"github.com/pdcgo/shared/configs"
 	"github.com/pdcgo/shared/db_connect"
@@ -16,6 +17,11 @@ import (
 
 func NewCache(cfg *configs.AppConfig) (ware_cache.Cache, error) {
 	return ware_cache.NewCustomCache(cfg.CacheService.Endpoint), nil
+}
+
+// NewCacheManager provides the role-cache used by the v2 access interceptor.
+func NewCacheManager() san_caches.CacheManager {
+	return san_caches.NewSkipCacheManager()
 }
 
 func NewAuthorization(

@@ -22,6 +22,7 @@ func InitializeApp() (*cli.Command, error) {
 		custom_connect.NewRegisterReflect,
 		NewDatabase,
 		NewCache,
+		NewCacheManager,
 		NewAuthorization,
 		event_source.NewPubSubDefaultClient,
 		event_source.NewPubsubEventSender,

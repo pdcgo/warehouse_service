@@ -3,9 +3,13 @@ package warehouse_service
 import (
 	"net/http"
 
+	"connectrpc.com/connect"
+	"github.com/pdcgo/san_collection/san_caches"
 	"github.com/pdcgo/schema/services/warehouse_iface/v1/warehouse_ifaceconnect"
+	"github.com/pdcgo/shared/configs"
 	"github.com/pdcgo/shared/custom_connect"
 	"github.com/pdcgo/shared/interfaces/authorization_iface"
+	"github.com/pdcgo/user_service/access_interceptors"
 	"github.com/pdcgo/warehouse_service/v2/inbound"
 	"github.com/pdcgo/warehouse_service/v2/inventory"
 	"github.com/pdcgo/warehouse_service/v2/outbound"
@@ -22,7 +26,8 @@ func NewRegister(
 	mux *http.ServeMux,
 	defaultInterceptor custom_connect.DefaultInterceptor,
 	pushHandler WarehousePushHttpHandler,
-	// cache ware_cache.Cache,
+	cfg *configs.AppConfig,
+	cacheMgr san_caches.CacheManager,
 	// dispather report.ReportDispatcher,
 ) RegisterHandler {
 	return func() ServiceReflectNames {
@@ -49,9 +54,16 @@ func NewRegister(
 		mux.Handle(path, handler)
 		grpcReflects = append(grpcReflects, warehouse_ifaceconnect.InventoryServiceName)
 
+		// v2 roling: enforce the (role_base.v1.request_policy) declared on each
+		// WarehouseService request message (admin-only management; reads authenticated;
+		// WarehouseIDs public). Per-handler option — only WarehouseService is gated.
+		warehouseRoleOpt := connect.WithInterceptors(
+			access_interceptors.NewAccessInterceptor(db, cfg.JwtSecret, cacheMgr),
+		)
 		path, handler = warehouse_ifaceconnect.NewWarehouseServiceHandler(
 			warehouse.NewWarehouseService(db, auth),
 			defaultInterceptor,
+			warehouseRoleOpt,
 		)
 		mux.Handle(path, handler)
 		grpcReflects = append(grpcReflects, warehouse_ifaceconnect.WarehouseServiceName)

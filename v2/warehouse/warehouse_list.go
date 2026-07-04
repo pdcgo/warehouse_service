@@ -31,7 +31,8 @@ func (w *warehouseServiceImpl) WarehouseList(
 	db := w.db.WithContext(ctx)
 
 	query := db.
-		Model(&db_models.Warehouse{})
+		Model(&db_models.Warehouse{}).
+		Where("deleted = ?", false)
 
 	if req.Msg.Q != "" {
 		search := strings.ToLower(req.Msg.Q)
