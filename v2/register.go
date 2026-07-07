@@ -61,7 +61,7 @@ func NewRegister(
 			access_interceptors.NewAccessInterceptor(db, cfg.JwtSecret, cacheMgr),
 		)
 		path, handler = warehouse_ifaceconnect.NewWarehouseServiceHandler(
-			warehouse.NewWarehouseService(db, auth),
+			warehouse.NewWarehouseService(db),
 			defaultInterceptor,
 			warehouseRoleOpt,
 		)

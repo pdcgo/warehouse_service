@@ -16,14 +16,6 @@ func (w *warehouseServiceImpl) WarehouseList(
 ) (*connect.Response[warehouse_iface.WarehouseListResponse], error) {
 	var err error
 
-	// identity := w.auth.AuthIdentityFromHeader(req.Header())
-
-	// err = identity.Err()
-
-	// if err != nil {
-	// 	return nil, err
-	// }
-
 	result := &warehouse_iface.WarehouseListResponse{
 		List: []*warehouse_iface.Warehouse{},
 	}

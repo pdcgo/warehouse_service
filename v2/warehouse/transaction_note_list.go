@@ -45,12 +45,6 @@ func (w *warehouseServiceImpl) TransactionNoteList(
 		return nil, err
 	}
 
-	identity := w.auth.AuthIdentityFromHeader(req.Header())
-	err = identity.Err()
-	if err != nil {
-		return nil, err
-	}
-
 	db := w.db.WithContext(ctx)
 	pay := req.Msg
 

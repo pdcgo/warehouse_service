@@ -7,7 +7,11 @@ Status for this development is still in progress and not completely take over le
 1. for database schema related, read this [Database Schema](database-schema.md).
 
 ## Authentication & Authorization
-1. Use v2 roling system. not legacy system.
+1. Use v2 roling system. not legacy system. for complete reference read [this](../../user_service/docs/readme.md#authentication--authorization)
+2. use interceptor that live in [here](../../user_service/access_interceptors/interceptor.go)
+3. DON'T use legacy interface on [this](../../shared/interfaces/authorization_iface/authorization.go)
+
+
 
 ## Connect RPC Spec
 `WarehouseService` heavyly depend `connect-rpc` to serve and creating apis and grpc. Why we use `connectrpc` because its can be two mode as pure grpc and grpc-web that interact like web. And also supported http2. This service have several rpc:
@@ -24,3 +28,9 @@ Status for this development is still in progress and not completely take over le
 ### Warehouse Management RPC
 1. warehouse management is for admin team.
 2. `WarehouseList` and `WarehouseDetail` available for all authenticated user.
+4. `WarehouseDelete` is soft delete.
+5. `WarehouseCreate` is using implementation of [Implementation For Long Running Task RPC](../../docs/code-implementation-guideline.md#implementation-for-long-running-task-rpc).
+    <br>important step that execute in `WarehouseCreate` is:
+    1. create team first.
+    2. create warehouse with primary key from team id.
+    3. add who created as team owner.
